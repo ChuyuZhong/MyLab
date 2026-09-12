@@ -1,0 +1,52 @@
+{
+  "sourceId": "x-tibo",
+  "fetchedAt": "2026-09-12T04:53:12.774Z",
+  "note": "由 TwStalker 公开索引读取的选定帖短节选，未成功直连 X。不代表完整时间线；可通过个人 X API 或 RSS 更新。",
+  "items": [
+    {
+      "id": "x:2098612714704891959",
+      "title": "Astra 质量问题的修复进展",
+      "content": "Hi Astra users. A reset and a quick update on quality issues that have been posted around. …",
+      "sourceId": "x-tibo",
+      "kind": "x",
+      "url": "https://x.com/thsottiaux/status/2098612714704891959",
+      "provenanceUrl": "https://twstalker.com/thsottiaux/status/2098612714704891959",
+      "publishedAt": "2026-09-12T03:20:36.181Z",
+      "author": "Tibo",
+      "read": false,
+      "saved": false,
+      "contentScope": "excerpt",
+      "provenance": "TwStalker 公开索引节选 · 未直连 X"
+    },
+    {
+      "id": "x:2098569976143806918",
+      "title": "Git AI 团队成员加入 OpenAI",
+      "content": "Excited to welcome Aidan & Sasha from the Git AI team to OpenAI! They are building in the open …",
+      "sourceId": "x-tibo",
+      "kind": "x",
+      "url": "https://x.com/thsottiaux/status/2098569976143806918",
+      "provenanceUrl": "https://twstalker.com/thsottiaux/status/2098569976143806918",
+      "publishedAt": "2026-09-12T00:30:46.514Z",
+      "author": "Tibo",
+      "read": false,
+      "saved": false,
+      "contentScope": "excerpt",
+      "provenance": "TwStalker 公开索引节选 · 未直连 X"
+    },
+    {
+      "id": "x:2098569538510180712",
+      "title": "ChatGPT 网站创建、分享与托管更新",
+      "content": "Massive upgrade to creating, sharing and hosting sites directly through ChatGPT.",
+      "sourceId": "x-tibo",
+      "kind": "x",
+      "url": "https://x.com/thsottiaux/status/2098569538510180712",
+      "provenanceUrl": "https://twstalker.com/thsottiaux/status/2098569538510180712",
+      "publishedAt": "2026-09-12T00:29:02.174Z",
+      "author": "Tibo",
+      "read": false,
+      "saved": false,
+      "contentScope": "excerpt",
+      "provenance": "TwStalker 公开索引节选 · 未直连 X"
+    }
+  ]
+}
