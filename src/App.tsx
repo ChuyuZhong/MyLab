@@ -154,7 +154,8 @@ export default function App() {
   useEffect(() => {
     let alive = true;
     async function load() {
-      for (const name of ["rsdl", "x"]) {
+      // WeChat revalidates the live directory on entering its page, with a cache fallback.
+      for (const name of ["x"]) {
         try {
           const r = await fetch(`./data/${name}.json`, { cache: "no-cache" });
           if (!r.ok) continue;

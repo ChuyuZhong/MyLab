@@ -61,6 +61,7 @@ export function defaultData(): AppData {
       gpuUrl: "",
       feedMode: "bridge",
       autoRefresh: 0,
+      wechatRefresh: 5,
       assistantHints: true,
     },
   };
@@ -334,7 +335,14 @@ export function validateBackup(value: unknown): AppData {
     d.sources.some(
       (s) =>
         !strings(s, ["id", "kind", "name", "handle", "url", "feedUrl"]) ||
-        !["x", "wechat"].includes(s.kind),
+        !["x", "wechat"].includes(s.kind) ||
+        (s.sync !== undefined &&
+          (!s.sync ||
+            !strings(s.sync, ["mode", "checkedAt", "dataAt", "latestItemAt"]) ||
+            !["live", "bridge", "snapshot"].includes(s.sync.mode) ||
+            (s.sync.warning !== undefined &&
+              typeof s.sync.warning !== "string") ||
+            (s.sync.added !== undefined && typeof s.sync.added !== "number"))),
     )
   )
     throw Error("订阅格式不正确");
@@ -419,6 +427,11 @@ export function validateBackup(value: unknown): AppData {
   settings.autoRefresh = [0, 15, 30, 60].includes(settings.autoRefresh)
     ? settings.autoRefresh
     : 0;
+  settings.wechatRefresh = [0, 1, 5, 15, 30, 60].includes(
+    settings.wechatRefresh,
+  )
+    ? settings.wechatRefresh
+    : 5;
   return {
     version: 1,
     tasks: d.tasks,

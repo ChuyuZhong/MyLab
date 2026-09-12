@@ -22,6 +22,7 @@ import { dayKey, safeUrl } from "./core";
 import { Modal, Field, Heading, Empty, ExternalLink, Notice } from "./ui";
 import type { Article, Source } from "./types";
 import { queueReading } from "./weekly";
+import { applyFeedResult } from "./feed-sync";
 export function SourceEditor({
   kind,
   initial,
@@ -116,7 +117,7 @@ export function SourceEditor({
           hint={
             kind === "x"
               ? "留空则使用本机服务连接 X 官方 API，需要填写 X API Token。"
-              : "留空可先手动导入文章；预设 RSDL 支持公开目录更新。"
+              : "RSDL 预设可直接更新；其他公众号需填写可用订阅地址，仅填名称不能自动获取新文章。留空可手动导入。"
           }
         >
           <input
@@ -321,6 +322,9 @@ export function FeedsPage({ kind }: { kind: "x" | "wechat" }) {
   const [reading, setReading] = useState<string>("");
   const [search, setSearch] = useState("");
   const refreshLock = useRef(false);
+  const refreshController = useRef<AbortController | null>(null);
+  const lastCheck = useRef(0);
+  const [visibleCount, setVisibleCount] = useState(50);
   const sources = data.sources.filter((s) => s.kind === kind);
   const articles = data.articles
     .filter(
@@ -349,52 +353,29 @@ export function FeedsPage({ kind }: { kind: "x" | "wechat" }) {
     }
   };
   const source = sources.find((s) => s.id === selected);
-  async function refresh() {
+  async function refresh(quiet = false, all = false) {
     if (refreshLock.current) return;
     refreshLock.current = true;
     setBusy(true);
-    let count = 0;
+    const controller = new AbortController();
+    refreshController.current = controller;
+    lastCheck.current = Date.now();
+    let success = 0;
     try {
-      for (const s of source ? [source] : sources) {
+      for (const s of !all && source ? [source] : sources) {
+        if (controller.signal.aborted) return;
         try {
-          const items = await fetchSource(s, data.settings, secrets);
-          count += items.length;
-          setData((d) => {
-            const incoming = new Map(items.map((a) => [a.id, a]));
-            const old = d.articles.map((a) => {
-              const fresh = incoming.get(a.id);
-              if (!fresh) return a;
-              incoming.delete(a.id);
-              return {
-                ...fresh,
-                read: a.read,
-                saved: a.saved,
-                translation: a.translation,
-                summary: a.summary,
-                ...(a.provenance.includes("手动补充")
-                  ? {
-                      content: a.content,
-                      contentScope: a.contentScope,
-                      provenance: a.provenance,
-                    }
-                  : {}),
-              };
-            });
-            return {
-              ...d,
-              articles: [...Array.from(incoming.values()), ...old],
-              sources: d.sources.map((x) =>
-                x.id === s.id
-                  ? {
-                      ...x,
-                      lastFetched: new Date().toISOString(),
-                      error: undefined,
-                    }
-                  : x,
-              ),
-            };
-          });
+          const result = await fetchSource(
+            s,
+            data.settings,
+            secrets,
+            controller.signal,
+          );
+          if (controller.signal.aborted) return;
+          success++;
+          setData((d) => applyFeedResult(d, s.id, result));
         } catch (e) {
+          if (controller.signal.aborted) return;
           const message = (e as Error).message;
           setData((d) => ({
             ...d,
@@ -402,10 +383,11 @@ export function FeedsPage({ kind }: { kind: "x" | "wechat" }) {
               x.id === s.id ? { ...x, error: message } : x,
             ),
           }));
-          notify(`${s.name}：${message}`);
+          if (!quiet) notify(`${s.name}：${message}`);
         }
       }
-      if (count) notify(`已读取 ${count} 条内容，重复内容已合并`);
+      if (success && !quiet)
+        notify("检查完成；新增数量、实时连接或缓存状态见页面下方。");
     } finally {
       refreshLock.current = false;
       setBusy(false);
@@ -414,12 +396,39 @@ export function FeedsPage({ kind }: { kind: "x" | "wechat" }) {
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
   useEffect(() => {
-    if (!data.settings.autoRefresh) return;
-    const id = setInterval(() => {
-      if (document.visibilityState === "visible") void refreshRef.current();
-    }, data.settings.autoRefresh * 60000);
-    return () => clearInterval(id);
-  }, [data.settings.autoRefresh, kind]);
+    const minutes =
+      kind === "wechat"
+        ? data.settings.wechatRefresh
+        : data.settings.autoRefresh;
+    const initial = setTimeout(() => {
+      if (kind === "wechat") void refreshRef.current(true, true);
+    }, 0);
+    const onVisible = () => {
+      if (
+        minutes &&
+        document.visibilityState === "visible" &&
+        Date.now() - lastCheck.current >= minutes * 60000
+      )
+        void refreshRef.current(true, true);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    const id = setInterval(
+      () => {
+        if (minutes && document.visibilityState === "visible")
+          void refreshRef.current(true, true);
+      },
+      (minutes || 60) * 60000,
+    );
+    return () => {
+      clearTimeout(initial);
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, [data.settings.autoRefresh, data.settings.wechatRefresh, kind]);
+  useEffect(() => () => refreshController.current?.abort(), []);
+  useEffect(() => setVisibleCount(50), [selected, filter, search, query]);
   const update = (id: string, p: Partial<Article>) =>
     setData((d) => ({
       ...d,
@@ -526,7 +535,7 @@ export function FeedsPage({ kind }: { kind: "x" | "wechat" }) {
             </p>
             {last && (
               <small>
-                上次成功读取
+                上次检查
                 <br />
                 {new Date(last).toLocaleString("zh-CN")}
               </small>
@@ -563,11 +572,11 @@ export function FeedsPage({ kind }: { kind: "x" | "wechat" }) {
               </button>
               <button
                 className="secondary compact"
-                onClick={refresh}
+                onClick={() => void refresh()}
                 disabled={busy}
               >
                 <RefreshCw size={15} className={busy ? "spin" : ""} />
-                {busy ? "更新中" : "更新"}
+                {busy ? "检查中" : "检查更新"}
               </button>
             </div>
           </div>
@@ -610,10 +619,94 @@ export function FeedsPage({ kind }: { kind: "x" | "wechat" }) {
             </Notice>
           )}
           {kind === "wechat" && (
-            <Notice>
-              预设来源为 RSDL
-              公开文章目录。目录收录时间不等于微信发布时间；正文需打开原文或手动补充。
-            </Notice>
+            <>
+              <div className="feed-auto-bar">
+                <label>
+                  自动检查{" "}
+                  <select
+                    aria-label="公众号自动检查间隔"
+                    value={data.settings.wechatRefresh}
+                    onChange={(e) =>
+                      setData((d) => ({
+                        ...d,
+                        settings: {
+                          ...d.settings,
+                          wechatRefresh: Number(e.target.value),
+                        },
+                      }))
+                    }
+                  >
+                    {[
+                      [0, "仅进入页面 / 手动"],
+                      [1, "每 1 分钟"],
+                      [5, "每 5 分钟"],
+                      [15, "每 15 分钟"],
+                      [30, "每 30 分钟"],
+                      [60, "每小时"],
+                    ].map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <span>进入页面即检查，后台暂停，返回后补查。</span>
+              </div>
+              {(source ? [source] : sources).map(
+                (s) =>
+                  s.sync && (
+                    <div
+                      className={
+                        "feed-sync-status " +
+                        (s.sync.mode === "snapshot" ? "cached" : "")
+                      }
+                      key={s.id}
+                      role="status"
+                    >
+                      <strong>
+                        {s.name} ·{" "}
+                        {s.sync.mode === "snapshot"
+                          ? "部署缓存"
+                          : s.sync.mode === "bridge"
+                            ? "本机服务读取"
+                            : "实时目录已连接"}
+                      </strong>
+                      <span>
+                        本次新增 {s.sync.added || 0} 篇 · 检查于{" "}
+                        {new Date(s.sync.checkedAt).toLocaleString("zh-CN")}
+                      </span>
+                      {s.sync.mode === "snapshot" && (
+                        <span>
+                          缓存采集时间：
+                          {s.sync.dataAt
+                            ? new Date(s.sync.dataAt).toLocaleString("zh-CN")
+                            : "未知"}
+                        </span>
+                      )}
+                      {s.sync.latestItemAt && (
+                        <span>
+                          目录最新收录：
+                          {new Date(s.sync.latestItemAt).toLocaleString(
+                            "zh-CN",
+                          )}
+                          {Date.now() - Date.parse(s.sync.latestItemAt) >
+                          7 * 86400000
+                            ? " · 上游目录近期未收录新内容，可能落后于微信端。"
+                            : ""}
+                        </span>
+                      )}
+                      {s.sync.warning && <p>{s.sync.warning}</p>}
+                    </div>
+                  ),
+              )}
+              <Notice>
+                RSDL
+                直接读取公开完整目录，包含期刊、会议、论文赏读等。目录收录时间不等于微信发布时间，更新取决于上游收录；正文需打开原文或手动补充。
+                <ExternalLink url="https://rsdl.info/">
+                  查看来源目录
+                </ExternalLink>
+              </Notice>
+            </>
           )}
           {active && kind === "wechat" ? (
             <article className="reader-panel">
@@ -683,7 +776,7 @@ export function FeedsPage({ kind }: { kind: "x" | "wechat" }) {
             </article>
           ) : (
             <div className={kind === "x" ? "tweet-list" : "article-list"}>
-              {articles.map((a, i) =>
+              {articles.slice(0, visibleCount).map((a, i) =>
                 kind === "x" ? (
                   <article className="tweet-card" key={a.id}>
                     <div className="tweet-header">
@@ -809,6 +902,15 @@ export function FeedsPage({ kind }: { kind: "x" | "wechat" }) {
                     </div>
                   </article>
                 ),
+              )}
+              {articles.length > visibleCount && (
+                <button
+                  className="secondary"
+                  onClick={() => setVisibleCount((n) => n + 50)}
+                >
+                  再显示 50 篇（已显示 {Math.min(visibleCount, articles.length)}{" "}
+                  / {articles.length}）
+                </button>
               )}
               {!articles.length && (
                 <Empty

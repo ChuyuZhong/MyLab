@@ -196,7 +196,7 @@ export function SettingsPage({
                   <option value="direct">浏览器直接读取</option>
                 </select>
               </Field>
-              <Field label="页面打开时自动更新">
+              <Field label="X 页面自动检查（公众号在阅读页单独设置）">
                 <select
                   value={settings.autoRefresh}
                   onChange={(e) =>

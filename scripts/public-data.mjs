@@ -1,54 +1,27 @@
-export function canonicalArticleUrl(value) {
-  const u = new URL(value);
-  if (u.hostname === "mp.weixin.qq.com") {
-    for (const key of [...u.searchParams.keys()])
-      if (!["__biz", "mid", "idx", "sn", "chksm"].includes(key))
-        u.searchParams.delete(key);
-    u.hash = "";
-  }
-  return u.href;
-}
-export const RSDL_URL = "https://rsdl.info/submissions/lists/misc-news.json";
+import { parseRSDL, RSDL_API, RSDL_FULL } from "../src/rsdl.ts";
+export { canonicalArticleUrl } from "../src/rsdl.ts";
+export const RSDL_URL = RSDL_API;
 export async function collectRSDL() {
-  const response = await fetch(RSDL_URL, {
-    signal: AbortSignal.timeout(20000),
-  });
-  if (!response.ok) throw Error(`RSDL 目录返回 HTTP ${response.status}`);
-  const j = await response.json();
-  if (!Array.isArray(j.items)) throw Error("RSDL 目录结构发生变化");
-  const items = j.items
-    .filter((x) => x.title && x.url && /^https:\/\//.test(x.url))
-    .sort((a, b) =>
-      String(b.added_at || "").localeCompare(String(a.added_at || "")),
-    )
-    .slice(0, 16)
-    .map((x) => ({
-      id: "rsdl:" + canonicalArticleUrl(x.url),
-      sourceId: "wechat-rsdl",
-      kind: "wechat",
-      title: x.title,
-      content: "",
-      url: canonicalArticleUrl(x.url),
-      publishedAt: "",
-      indexedAt: x.added_at
-        ? new Date(
-            x.added_at.includes("T")
-              ? x.added_at
-              : x.added_at.replace(" ", "T") + "+08:00",
-          ).toISOString()
-        : undefined,
-      author: "遥感与深度学习",
-      read: false,
-      saved: false,
-      contentScope: "link",
-      provenance: "RSDL 公开文章目录",
-    }));
-  return {
-    sourceId: "wechat-rsdl",
-    fetchedAt: new Date().toISOString(),
-    sourceUrl: RSDL_URL,
-    items,
-  };
+  for (const url of [RSDL_API, RSDL_FULL]) {
+    try {
+      const response = await fetch(
+        url + (url.includes("?") ? "&" : "?") + "_=" + Date.now(),
+        { cache: "no-store", signal: AbortSignal.timeout(20000) },
+      );
+      if (!response.ok) throw Error(`HTTP ${response.status}`);
+      const result = parseRSDL(await response.json());
+      return {
+        ...result,
+        sourceUrl: url,
+        ...(url === RSDL_FULL
+          ? { warning: "上游动态接口未连接，读取上游完整目录文件。" }
+          : {}),
+      };
+    } catch (error) {
+      if (url === RSDL_FULL)
+        throw Error("RSDL 完整目录读取失败：" + error.message);
+    }
+  }
 }
 export const X_POSTS = [
   "2098612714704891959",

@@ -1,10 +1,12 @@
-import type { Article, Settings, Secrets, Source } from "./types";
+import type { Article, Settings, Secrets, Source, FeedResult } from "./types";
 import { safeUrl } from "./core";
+import { fetchRSDL } from "./rsdl-client";
 export async function bridgeRequest(
   settings: Settings,
   secrets: Secrets,
   path: string,
   body?: object,
+  signal?: AbortSignal,
 ) {
   const base = safeUrl(settings.bridgeUrl);
   if (!base) throw Error("请在设置中填写有效的本机连接服务地址");
@@ -18,7 +20,9 @@ export async function bridgeRequest(
         Authorization: `Bearer ${secrets.bridgeKey}`,
       },
       body: body ? JSON.stringify(body) : undefined,
-      signal: AbortSignal.timeout(30000),
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(30000)])
+        : AbortSignal.timeout(30000),
       redirect: "error",
     });
   } catch {
@@ -147,18 +151,41 @@ export async function fetchSource(
   source: Source,
   settings: Settings,
   secrets: Secrets,
-): Promise<Article[]> {
+  signal?: AbortSignal,
+): Promise<FeedResult> {
+  const result = (items: Article[], mode: "live" | "bridge"): FeedResult => ({
+    items,
+    sync: {
+      mode,
+      checkedAt: new Date().toISOString(),
+      dataAt: new Date().toISOString(),
+      latestItemAt:
+        items
+          .map((a) => a.publishedAt || a.indexedAt || "")
+          .sort()
+          .at(-1) || "",
+    },
+  });
   if (source.feedUrl) {
     let text: string;
     if (settings.feedMode === "bridge") {
       text = (
-        await bridgeRequest(settings, secrets, "/feed", { url: source.feedUrl })
+        await bridgeRequest(
+          settings,
+          secrets,
+          "/feed",
+          { url: source.feedUrl },
+          signal,
+        )
       ).text;
     } else {
       try {
         const r = await fetch(safeUrl(source.feedUrl), {
-          signal: AbortSignal.timeout(20000),
+          signal: signal
+            ? AbortSignal.any([signal, AbortSignal.timeout(20000)])
+            : AbortSignal.timeout(20000),
           credentials: "omit",
+          cache: "no-store",
         });
         if (!r.ok) throw Error(String(r.status));
         text = await r.text();
@@ -166,33 +193,34 @@ export async function fetchSource(
         throw Error("订阅地址无法直接读取。可在设置中切换为通过本机服务读取。");
       }
     }
-    return parseFeed(text, source);
+    return result(
+      parseFeed(text, source),
+      settings.feedMode === "bridge" ? "bridge" : "live",
+    );
   }
   if (source.kind === "x") {
-    const result = await bridgeRequest(settings, secrets, "/x", {
-      handle: source.handle,
-      key: secrets.xKey,
-    });
-    return result.items.map((a: Article) => ({ ...a, sourceId: source.id }));
+    const response = await bridgeRequest(
+      settings,
+      secrets,
+      "/x",
+      {
+        handle: source.handle,
+        key: secrets.xKey,
+      },
+      signal,
+    );
+    return result(
+      response.items.map((a: Article) => ({ ...a, sourceId: source.id })),
+      "bridge",
+    );
   }
   if (source.id === "wechat-rsdl") {
-    if (secrets.bridgeKey) {
-      const r = await bridgeRequest(settings, secrets, "/rsdl");
-      return r.items.map((a: Article) => ({ ...a, sourceId: source.id }));
-    }
-    const response = await fetch("./data/rsdl.json", {
-      cache: "no-cache",
-      signal: AbortSignal.timeout(15000),
+    return fetchRSDL({
+      signal,
+      bridge: secrets.bridgeKey
+        ? () => bridgeRequest(settings, secrets, "/rsdl", undefined, signal)
+        : undefined,
     });
-    if (!response.ok) throw Error("网站目录快照暂不可用，请连接本机服务后重试");
-    const result = await response.json();
-    if (!result.items?.length)
-      throw Error("尚未取得目录快照，请连接本机服务读取");
-    return result.items.map((a: Article) => ({
-      ...a,
-      sourceId: source.id,
-      provenance: `RSDL 目录快照 · ${new Date(result.fetchedAt).toLocaleDateString("zh-CN")}`,
-    }));
   }
   throw Error("请编辑此订阅，填写 RSS / JSON 地址；也可以手动导入文章链接。");
 }

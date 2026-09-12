@@ -45,6 +45,20 @@ export interface Source {
   feedUrl: string;
   lastFetched?: string;
   error?: string;
+  sync?: FeedSync;
+}
+export interface FeedSync {
+  mode: "live" | "bridge" | "snapshot";
+  checkedAt: string;
+  dataAt: string;
+  latestItemAt: string;
+  upstreamUpdatedAt?: string;
+  warning?: string;
+  added?: number;
+}
+export interface FeedResult {
+  items: Article[];
+  sync: FeedSync;
 }
 export interface Article {
   id: string;
@@ -85,6 +99,7 @@ export interface Settings {
   gpuUrl: string;
   feedMode: "direct" | "bridge";
   autoRefresh: number;
+  wechatRefresh: number;
   assistantHints: boolean;
 }
 export interface AppData {
