@@ -4,6 +4,16 @@ import dns from "node:dns/promises";
 import { isIP } from "node:net";
 import { randomBytes, createHash, timingSafeEqual } from "node:crypto";
 import { collectRSDL } from "./public-data.mjs";
+import { wechatArticleUrl, extractWechatArticle } from "./article-reader.mjs";
+import { createXNetwork } from "./x-network.mjs";
+import { allowedLocalFeed } from "./local-feed.mjs";
+const xNetwork = createXNetwork(process.env.MYLAB_PROXY_URL || "");
+const localFeedOrigins = new Set(
+  (process.env.MYLAB_LOCAL_FEED_ORIGINS || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean),
+);
 // The bridge is deliberately loopback-only. No passwords or API tokens are written to disk.
 const port = Number(process.env.MYLAB_BRIDGE_PORT || 4318);
 const pairing = randomBytes(24).toString("base64url");
@@ -109,9 +119,33 @@ function privateIP(ip) {
   );
 }
 // Resolve and pin a public address, including on redirects, so an RSS URL cannot query the lab or local services.
-async function publicText(value, depth = 0) {
+async function publicText(value, depth = 0, articleOnly = false) {
   if (depth > 3) throw Error("订阅重定向过多");
   const u = new URL(value);
+  if (articleOnly) {
+    try {
+      wechatArticleUrl(value);
+    } catch (e) {
+      if (depth)
+        throw Error(
+          "微信将请求转到了验证页或非正文页面。请打开原文完成阅读后粘贴正文，或使用全文 RSS。",
+        );
+      throw e;
+    }
+  }
+  if (!articleOnly && allowedLocalFeed(value, localFeedOrigins)) {
+    const r = await fetch(u, { signal: timeout(), redirect: "error" });
+    if (!r.ok) throw Error(`本机 RSS 返回 HTTP ${r.status}`);
+    let text = "",
+      bytes = 0;
+    const decoder = new TextDecoder();
+    for await (const part of r.body) {
+      bytes += part.byteLength;
+      if (bytes > 3_000_000) throw Error("订阅内容超过 3 MB");
+      text += decoder.decode(part, { stream: true });
+    }
+    return text + decoder.decode();
+  }
   if (u.protocol !== "https:" || u.username || u.password)
     throw Error("代理订阅仅接受不含凭据的 HTTPS 地址");
   const addresses = await dns.lookup(u.hostname, { all: true });
@@ -144,6 +178,7 @@ async function publicText(value, depth = 0) {
               await publicText(
                 new URL(res.headers.location, u).href,
                 depth + 1,
+                articleOnly,
               ),
             );
           } catch (e) {
@@ -180,7 +215,7 @@ async function xPosts(handle, key) {
       "完整 X 时间线需要个人 X API Bearer Token，或为此订阅设置 RSS 地址",
     );
   const get = async (path) => {
-    const r = await fetch("https://api.x.com/2/" + path, {
+    const r = await xNetwork.fetch("https://api.x.com/2/" + path, {
       headers: { Authorization: "Bearer " + key },
       signal: timeout(),
       redirect: "error",
@@ -255,6 +290,8 @@ const server = http.createServer(async (req, res) => {
         ok: true,
         gpuConnected: Boolean(gpuToken),
         version: "0.1.0",
+        xProxy: xNetwork.proxy || "直连",
+        articleReader: true,
       });
       return;
     }
@@ -303,6 +340,15 @@ const server = http.createServer(async (req, res) => {
     if (path === "/feed" && req.method === "POST") {
       const q = await body(req);
       json(res, 200, { text: await publicText(q.url) });
+      return;
+    }
+    if (path === "/article" && req.method === "POST") {
+      const q = await body(req);
+      const url = wechatArticleUrl(q.url);
+      json(res, 200, {
+        ...extractWechatArticle(await publicText(url, 0, true)),
+        url,
+      });
       return;
     }
     if (path === "/x" && req.method === "POST") {

@@ -28,7 +28,7 @@ export function mergeFeedArticles(
       saved: old.saved,
       translation: old.translation,
       summary: old.summary,
-      ...(old.provenance.includes("手动")
+      ...(old.provenance.includes("手动") || (old.content && !fresh.content)
         ? {
             content: old.content,
             contentScope: old.contentScope,

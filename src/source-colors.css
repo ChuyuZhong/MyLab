@@ -1,0 +1,157 @@
+[data-source-color="emerald"] {
+  --source-solid: #087f5b;
+}
+[data-source-color="violet"] {
+  --source-solid: #7040b5;
+}
+[data-source-color="blue"] {
+  --source-solid: #2458c4;
+}
+[data-source-color="orange"] {
+  --source-solid: #b44715;
+}
+[data-source-color="rose"] {
+  --source-solid: #b32965;
+}
+[data-source-color="cyan"] {
+  --source-solid: #086e87;
+}
+[data-source-color="gold"] {
+  --source-solid: #916800;
+}
+[data-source-color] {
+  --source-tint: color-mix(in srgb, var(--source-solid) 8%, var(--surface));
+  --source-line: color-mix(in srgb, var(--source-solid) 25%, var(--surface));
+  --source-text: color-mix(in srgb, var(--source-solid) 72%, var(--ink));
+  --source-pattern: color-mix(in srgb, var(--source-solid) 9%, transparent);
+}
+[data-theme="dark"] [data-source-color] {
+  --source-tint: color-mix(in srgb, var(--source-solid) 17%, var(--surface));
+  --source-line: color-mix(in srgb, var(--source-solid) 48%, var(--surface));
+  --source-text: color-mix(in srgb, var(--source-solid) 35%, #e6eef2);
+}
+.source-row[data-source-color] {
+  border: 1px solid transparent;
+}
+.source-row[data-source-color].selected {
+  background: var(--source-tint);
+  border-color: var(--source-line);
+}
+[data-source-color] .source-square {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 5px;
+  background: var(--source-solid);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+.reading-card[data-source-color],
+.tweet-card[data-source-color] {
+  background-color: var(--source-tint);
+  background-image: radial-gradient(
+    var(--source-pattern) 0.7px,
+    transparent 0.7px
+  );
+  background-size: 9px 9px;
+  border: 1px solid var(--source-line);
+  border-left: 4px solid var(--source-solid);
+  border-radius: 10px;
+  padding: 22px;
+  margin-bottom: 14px;
+}
+.reading-card[data-source-color] {
+  gap: 17px;
+}
+.reading-card[data-source-color] .reading-index {
+  width: 44px;
+  height: 44px;
+}
+[data-source-color] .reading-meta,
+[data-source-color] .tweet-header small,
+[data-source-color] .content-scope,
+[data-source-color] .article-actions .text-button,
+[data-source-color] .reading-details p {
+  color: var(--source-text);
+}
+.reading-card[data-source-color].is-read .article-title {
+  color: var(--ink);
+}
+[data-source-color] .unread-label {
+  background: var(--source-line);
+  color: var(--source-text);
+}
+[data-source-color] .article-actions .read-toggle {
+  border: 1px solid var(--source-line);
+  padding: 5px 8px;
+  border-radius: 5px;
+}
+[data-source-color] .read-toggle[aria-pressed="true"] {
+  background: var(--source-solid);
+  color: white;
+}
+.reader-panel[data-source-color] {
+  border-top: 4px solid var(--source-solid);
+}
+.reader-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.source-color-picker {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 5px;
+}
+.source-color-picker button {
+  width: 34px;
+  height: 34px;
+  border-radius: 5px;
+  color: white;
+  border: 2px solid transparent;
+}
+.source-color-picker button[aria-pressed="true"] {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+.wechat-access-help {
+  margin: 14px 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 13px 16px;
+  font-size: 12px;
+  line-height: 1.9;
+  color: var(--muted);
+}
+.wechat-access-help summary {
+  cursor: pointer;
+  color: var(--ink);
+  font-weight: 500;
+}
+.wechat-access-help p {
+  margin: 8px 0;
+}
+@media (max-width: 620px) {
+  .reading-card[data-source-color],
+  .tweet-card[data-source-color] {
+    padding: 16px 12px;
+  }
+  .reading-card[data-source-color] {
+    gap: 10px;
+  }
+  .reading-card[data-source-color] .reading-index {
+    width: 34px;
+    height: 34px;
+    font-size: 11px;
+  }
+  [data-source-color] .article-actions {
+    gap: 12px;
+  }
+}

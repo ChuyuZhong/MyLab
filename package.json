@@ -8,15 +8,17 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
-    "bridge": "node scripts/bridge.mjs"
+    "bridge": "node --env-file-if-exists=.env.local scripts/bridge.mjs"
   },
   "dependencies": {
+    "cheerio": "^1.2.0",
     "ical.js": "^2.2.1",
     "lucide-react": "^1.45.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-markdown": "^10.1.0",
-    "remark-gfm": "^4.0.1"
+    "remark-gfm": "^4.0.1",
+    "undici": "^8.10.2"
   },
   "devDependencies": {
     "@types/node": "^22.20.2",

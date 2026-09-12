@@ -17,12 +17,14 @@ import {
   Loader2,
 } from "lucide-react";
 import { useApp } from "./store";
-import { fetchSource } from "./api";
+import { fetchSource, bridgeRequest, callAI } from "./api";
 import { dayKey, safeUrl } from "./core";
 import { Modal, Field, Heading, Empty, ExternalLink, Notice } from "./ui";
 import type { Article, Source } from "./types";
-import { queueReading } from "./weekly";
+import { queueReading, weekStartFor } from "./weekly";
 import { applyFeedResult } from "./feed-sync";
+import { SOURCE_COLORS, sourceColor } from "./source-style";
+import { readingMessages, completeReading } from "./reading";
 export function SourceEditor({
   kind,
   initial,
@@ -127,6 +129,22 @@ export function SourceEditor({
             }
             placeholder="https://…/feed.xml"
           />
+        </Field>
+        <Field label="来源配色">
+          <div className="source-color-picker">
+            {SOURCE_COLORS.map(([key, label, color]) => (
+              <button
+                key={key}
+                type="button"
+                aria-label={`配色：${label}`}
+                aria-pressed={sourceColor(source) === key}
+                style={{ backgroundColor: color }}
+                onClick={() => setSource((s) => ({ ...s, color: key }))}
+              >
+                {sourceColor(source) === key ? "✓" : ""}
+              </button>
+            ))}
+          </div>
         </Field>
         <div className="modal-actions">
           {initial && (
@@ -325,6 +343,104 @@ export function FeedsPage({ kind }: { kind: "x" | "wechat" }) {
   const refreshController = useRef<AbortController | null>(null);
   const lastCheck = useRef(0);
   const [visibleCount, setVisibleCount] = useState(50);
+  const [readingBusy, setReadingBusy] = useState("");
+  const [readingError, setReadingError] = useState<{
+    id: string;
+    message: string;
+  } | null>(null);
+  const articleRequest = useRef<AbortController | null>(null);
+  const latestData = useRef(data);
+  latestData.current = data;
+  useEffect(() => () => articleRequest.current?.abort(), []);
+  const themeFor = (id: string) =>
+    sourceColor(data.sources.find((s) => s.id === id) || { id, kind });
+  async function acquireText(a: Article, signal: AbortSignal) {
+    if (a.content.trim()) return a;
+    if (!secrets.bridgeKey)
+      throw Error(
+        "先在设置中配对本机服务以获取微信正文，或用“补充正文”粘贴原文 / 接入全文 RSS。模型不能仅凭链接读取文章。",
+      );
+    const result = await bridgeRequest(
+      data.settings,
+      secrets,
+      "/article",
+      { url: a.url },
+      signal,
+    );
+    if (signal.aborted) throw Error("已取消");
+    if (typeof result.content !== "string" || !result.content.trim())
+      throw Error("未取得正文");
+    const fetched = {
+      ...a,
+      content: result.content,
+      contentScope: "full" as const,
+      provenance: a.provenance + " · 本机获取文字正文",
+    };
+    setData((d) => ({
+      ...d,
+      articles: d.articles.map((x) =>
+        x.id === a.id && !x.content.trim()
+          ? {
+              ...x,
+              content: fetched.content,
+              contentScope: fetched.contentScope,
+              provenance: fetched.provenance,
+            }
+          : x,
+      ),
+    }));
+    return fetched;
+  }
+  async function readArticle(a: Article, ai = false) {
+    if (articleRequest.current) return;
+    setReading(a.id);
+    setReadingError(null);
+    if (ai && !secrets.aiKey) {
+      setReadingError({
+        id: a.id,
+        message:
+          "请先在设置中填写个人模型 API Key，然后点击“AI 阅读并加入周报”。",
+      });
+      return;
+    }
+    const controller = new AbortController();
+    articleRequest.current = controller;
+    setReadingBusy(a.id);
+    const targetWeek = weekStartFor();
+    try {
+      if (ai) queueReading(latestData.current, a.id, targetWeek);
+      const material = await acquireText(a, controller.signal);
+      if (ai) {
+        const summary = await callAI(
+          data.settings,
+          secrets.aiKey,
+          readingMessages(material),
+          controller.signal,
+        );
+        if (controller.signal.aborted) return;
+        const result = completeReading(
+          latestData.current,
+          a.id,
+          summary,
+          targetWeek,
+        );
+        setData((d) => completeReading(d, a.id, summary, targetWeek).data);
+        notify(
+          result.queued
+            ? "AI 阅读笔记已保存并加入本周周报，请核对内容。"
+            : "AI 笔记已保存；本周已满 12 篇，请手动整理后加入。",
+        );
+      } else notify("已获取文字正文，可在站内阅读。图片、视频请查看原文。");
+    } catch (e) {
+      if (!controller.signal.aborted)
+        setReadingError({ id: a.id, message: (e as Error).message });
+    } finally {
+      if (articleRequest.current === controller) {
+        articleRequest.current = null;
+        setReadingBusy("");
+      }
+    }
+  }
   const sources = data.sources.filter((s) => s.kind === kind);
   const articles = data.articles
     .filter(
@@ -437,6 +553,7 @@ export function FeedsPage({ kind }: { kind: "x" | "wechat" }) {
   const open = (a: Article) => {
     setReading(a.id);
     update(a.id, { read: true });
+    if (!a.content && secrets.bridgeKey) void readArticle({ ...a, read: true });
   };
   const sourceErrors = (source ? [source] : sources).filter((s) => s.error);
   const last = (source ? [source] : sources)
@@ -488,6 +605,7 @@ export function FeedsPage({ kind }: { kind: "x" | "wechat" }) {
             <div
               className={"source-row " + (selected === s.id ? "selected" : "")}
               key={s.id}
+              data-source-color={sourceColor(s)}
             >
               <button
                 className="source-item"
@@ -496,8 +614,8 @@ export function FeedsPage({ kind }: { kind: "x" | "wechat" }) {
                   setReading("");
                 }}
               >
-                <span className={"source-avatar " + kind}>
-                  {s.name.slice(0, 1)}
+                <span className={"source-avatar source-square " + kind}>
+                  {s.name.slice(0, 2)}
                 </span>
                 <span className="source-name">
                   {s.name}
@@ -701,24 +819,75 @@ export function FeedsPage({ kind }: { kind: "x" | "wechat" }) {
               )}
               <Notice>
                 RSDL
-                直接读取公开完整目录，包含期刊、会议、论文赏读等。目录收录时间不等于微信发布时间，更新取决于上游收录；正文需打开原文或手动补充。
+                直接读取公开完整目录，包含期刊、会议、论文赏读等。目录收录时间不等于微信发布时间，更新取决于上游收录；站内正文可通过本机服务、全文
+                RSS 或粘贴取得。
                 <ExternalLink url="https://rsdl.info/">
                   查看来源目录
                 </ExternalLink>
               </Notice>
+              <details className="wechat-access-help">
+                <summary>为什么正文或新文章没有同步？</summary>
+                <p>
+                  公开目录仅有链接，也可能晚于微信发文。读取正文需要已配对的本机服务；微信要求验证时，请在原文中完成阅读后粘贴正文。模型
+                  API 只能分析已取得的文字。
+                </p>
+                <p>
+                  持续获取新文章：在自己维护的公众号采集服务中完成登录，开启全文
+                  RSS，再把对应订阅地址填入此来源。MyLab
+                  按其采集结果更新，无法绕过微信验证。
+                </p>
+                <button
+                  className="text-button"
+                  onClick={() => navigate("settings")}
+                >
+                  连接本机服务 / 模型 API
+                </button>
+              </details>
             </>
           )}
           {active && kind === "wechat" ? (
-            <article className="reader-panel">
+            <article
+              className="reader-panel"
+              data-source-color={themeFor(active.sourceId)}
+            >
               <button className="text-button" onClick={() => setReading("")}>
                 ← 返回文章列表
               </button>
               <div className="reader-meta">
+                <span className="source-avatar source-square">
+                  {active.author.slice(0, 2)}
+                </span>
                 {active.author} · {stamp(active)}
               </div>
               <h2>{active.title}</h2>
               <div className="reader-actions">
                 <ExternalLink url={active.url}>打开原文</ExternalLink>
+                <button
+                  className="text-button"
+                  aria-pressed={active.read}
+                  onClick={() => update(active.id, { read: !active.read })}
+                >
+                  <CheckCheck size={15} />
+                  {active.read ? "已读" : "标为已读"}
+                </button>
+                {!active.content && (
+                  <button
+                    className="text-button"
+                    disabled={Boolean(readingBusy)}
+                    onClick={() => void readArticle(active)}
+                  >
+                    <BookOpen size={15} />
+                    获取正文
+                  </button>
+                )}
+                <button
+                  className="text-button"
+                  disabled={!active.read || Boolean(readingBusy)}
+                  onClick={() => void readArticle(active, true)}
+                >
+                  <Sparkles size={15} />
+                  AI 阅读并加入周报
+                </button>
                 <button
                   className="text-button"
                   onClick={() => addToReport(active.id)}
@@ -728,6 +897,7 @@ export function FeedsPage({ kind }: { kind: "x" | "wechat" }) {
                 </button>
                 <button
                   className="text-button"
+                  disabled={Boolean(readingBusy)}
                   onClick={() => setArticleEditor(active)}
                 >
                   <PencilIcon />
@@ -757,6 +927,35 @@ export function FeedsPage({ kind }: { kind: "x" | "wechat" }) {
                   {active.saved ? "已收藏" : "收藏"}
                 </button>
               </div>
+              {readingBusy === active.id && (
+                <Notice>
+                  <Loader2 size={16} className="spin" />
+                  正在获取正文 / 整理阅读笔记…
+                  <button
+                    className="text-button"
+                    onClick={() => articleRequest.current?.abort()}
+                  >
+                    停止
+                  </button>
+                </Notice>
+              )}
+              {readingError?.id === active.id && (
+                <Notice tone="warning">
+                  {readingError.message}
+                  <button
+                    className="text-button"
+                    onClick={() => setArticleEditor(active)}
+                  >
+                    粘贴 / 补充正文
+                  </button>
+                  <button
+                    className="text-button"
+                    onClick={() => navigate("settings")}
+                  >
+                    连接设置
+                  </button>
+                </Notice>
+              )}
               <span className="content-scope">{scopeLabel(active)}</span>
               {active.content ? (
                 <div className="article-content">{active.content}</div>
@@ -764,7 +963,7 @@ export function FeedsPage({ kind }: { kind: "x" | "wechat" }) {
                 <Empty icon={<Link2 size={24} />} heading="已收录原文链接">
                   目录未提供文章正文。
                   <br />
-                  打开原文阅读，或补充内容后交给助手总结。
+                  点击“获取正文”，或从微信复制正文后点击“补充正文”。取得文字后即可在此阅读并生成周报笔记。
                 </Empty>
               )}
               {active.summary && (
@@ -778,10 +977,14 @@ export function FeedsPage({ kind }: { kind: "x" | "wechat" }) {
             <div className={kind === "x" ? "tweet-list" : "article-list"}>
               {articles.slice(0, visibleCount).map((a, i) =>
                 kind === "x" ? (
-                  <article className="tweet-card" key={a.id}>
+                  <article
+                    className="tweet-card"
+                    key={a.id}
+                    data-source-color={themeFor(a.sourceId)}
+                  >
                     <div className="tweet-header">
-                      <span className="source-avatar x">
-                        {a.author.slice(0, 1) || "X"}
+                      <span className="source-avatar source-square x">
+                        {a.author.slice(0, 2) || "X"}
                       </span>
                       <div>
                         <strong>{a.author}</strong>
@@ -854,9 +1057,12 @@ export function FeedsPage({ kind }: { kind: "x" | "wechat" }) {
                   <article
                     className={"reading-card " + (a.read ? "is-read" : "")}
                     key={a.id}
+                    data-source-color={themeFor(a.sourceId)}
                   >
                     <div className="reading-index">
-                      {String(i + 1).padStart(2, "0")}
+                      <span className="source-avatar source-square">
+                        {a.author.slice(0, 2) || "文"}
+                      </span>
                     </div>
                     <div className="reading-details">
                       <div className="reading-meta">
@@ -869,6 +1075,14 @@ export function FeedsPage({ kind }: { kind: "x" | "wechat" }) {
                       </button>
                       {a.content && <p>{a.content.slice(0, 120)}</p>}
                       <div className="article-actions">
+                        <button
+                          className="text-button read-toggle"
+                          aria-pressed={a.read}
+                          onClick={() => update(a.id, { read: !a.read })}
+                        >
+                          <CheckCheck size={14} />
+                          {a.read ? "已读" : "标为已读"}
+                        </button>
                         <button className="text-button" onClick={() => open(a)}>
                           <BookOpen size={14} />
                           阅读
@@ -898,6 +1112,25 @@ export function FeedsPage({ kind }: { kind: "x" | "wechat" }) {
                           转为待办
                         </button>
                         <ExternalLink url={a.url}>原文</ExternalLink>
+                        {a.read && (
+                          <>
+                            <button
+                              className="text-button"
+                              disabled={Boolean(readingBusy)}
+                              onClick={() => void readArticle(a, true)}
+                            >
+                              <Sparkles size={14} />
+                              AI 阅读并加入周报
+                            </button>
+                            <button
+                              className="text-button"
+                              onClick={() => addToReport(a.id)}
+                            >
+                              <FilePlus2 size={14} />
+                              加入周报
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
                   </article>

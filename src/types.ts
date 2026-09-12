@@ -43,6 +43,7 @@ export interface Source {
   handle: string;
   url: string;
   feedUrl: string;
+  color?: string;
   lastFetched?: string;
   error?: string;
   sync?: FeedSync;

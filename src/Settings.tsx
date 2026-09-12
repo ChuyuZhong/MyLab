@@ -36,7 +36,9 @@ export function SettingsPage({
     setBusy("bridge");
     try {
       const h = await bridgeRequest(settings, secrets, "/health");
-      setStatus(`本机连接成功 · GPU ${h.gpuConnected ? "已登录" : "尚未登录"}`);
+      setStatus(
+        `本机连接成功 · GPU ${h.gpuConnected ? "已登录" : "尚未登录"} · X 出站：${h.xProxy || "直连"} · ${h.articleReader ? "支持微信文字正文获取" : "请重启新版本机服务以获取微信正文"}`,
+      );
       notify("本机服务连接成功");
     } catch (e) {
       setStatus((e as Error).message);
