@@ -35,6 +35,7 @@ export async function callAI(
   key: string,
   messages: { role: string; content: string }[],
   signal?: AbortSignal,
+  options?: { maxTokens?: number },
 ) {
   if (!key)
     throw Error("请先在设置中填写个人模型 API Key。密钥仅在本次打开期间使用。");
@@ -55,7 +56,7 @@ export async function callAI(
           model: settings.aiModel,
           messages,
           stream: false,
-          max_tokens: 4096,
+          max_tokens: options?.maxTokens ?? 4096,
         }),
         signal: signal
           ? AbortSignal.any([signal, AbortSignal.timeout(90000)])

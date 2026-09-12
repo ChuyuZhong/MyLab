@@ -57,7 +57,7 @@ export function SettingsPage({
             <KeyRound size={20} />
             <div>
               <h2>模型与翻译</h2>
-              <p>助手与翻译共用这一组接口配置。</p>
+              <p>助手、翻译与周报生成共用这一组接口配置。</p>
             </div>
           </div>
           <div className="form-stack">
@@ -233,9 +233,13 @@ export function SettingsPage({
               {data.events.length}
               <small>日程</small>
             </span>
+            <span>
+              {data.reports.length}
+              <small>周报</small>
+            </span>
           </div>
           <Notice>
-            建议定期导出备份。备份不包含密钥、实验室地址或订阅接口地址；任务和文章内容本身可能包含个人信息，请自行妥善保存。
+            建议定期导出备份，周报草稿也会一并保存。备份不包含密钥、实验室地址或订阅接口地址；任务、文章和周报内容可能包含个人信息，请自行妥善保存。
           </Notice>
           <div className="button-group wrap">
             <button
@@ -281,6 +285,9 @@ export function SettingsPage({
                         articles: merge(d.articles, incoming.articles),
                         sources: merge(d.sources, incoming.sources),
                         requests: merge(d.requests, incoming.requests),
+                        reports: merge(d.reports, incoming.reports).sort(
+                          (a, b) => b.weekStart.localeCompare(a.weekStart),
+                        ),
                       };
                     });
                     notify("已合并备份：同 ID 记录采用导入内容，现有设置保留");

@@ -31,6 +31,7 @@ export function defaultData(): AppData {
     articles: [],
     requests: [],
     notified: [],
+    reports: [],
     sources: [
       {
         id: "x-tibo",
@@ -368,6 +369,48 @@ export function validateBackup(value: unknown): AppData {
   )
     throw Error("申请记录格式不正确");
   const settings = defaultData().settings;
+  const reports = d.reports ?? [];
+  if (
+    !Array.isArray(reports) ||
+    reports.length > 520 ||
+    reports.some(
+      (r) =>
+        !r ||
+        !strings(r, [
+          "id",
+          "weekStart",
+          "author",
+          "work",
+          "ideas",
+          "nextWeek",
+          "other",
+          "markdown",
+          "updatedAt",
+          "generatedBasis",
+          "generationMode",
+        ]) ||
+        !validDay(r.weekStart) ||
+        parseDay(r.weekStart).getDay() !== 1 ||
+        r.id !== r.weekStart ||
+        !["", "local", "ai"].includes(r.generationMode) ||
+        typeof r.includeNonDDL !== "boolean" ||
+        !Array.isArray(r.articleIds) ||
+        r.articleIds.length > 12 ||
+        r.articleIds.some((s) => typeof s !== "string") ||
+        !Array.isArray(r.taskIds) ||
+        r.taskIds.length > 20000 ||
+        r.taskIds.some((s) => typeof s !== "string") ||
+        !r.readingNotes ||
+        typeof r.readingNotes !== "object" ||
+        Array.isArray(r.readingNotes) ||
+        Object.values(r.readingNotes).some(
+          (n) => !n || !strings(n, ["paperTitle", "publication", "notes"]),
+        ) ||
+        r.markdown.length > 200000 ||
+        r.author.length > 80,
+    )
+  )
+    throw Error("备份中的周报格式不正确");
   for (const key of Object.keys(settings) as (keyof typeof settings)[]) {
     if (typeof d.settings[key] === typeof settings[key])
       (settings as unknown as Record<string, unknown>)[key] = d.settings[key];
@@ -385,6 +428,7 @@ export function validateBackup(value: unknown): AppData {
     requests: d.requests,
     notified: d.notified.filter((n) => typeof n === "string"),
     settings,
+    reports,
   };
 }
 export function makeBackup(data: AppData) {

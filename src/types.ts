@@ -1,4 +1,11 @@
-export type Page = "today" | "calendar" | "x" | "wechat" | "gpu" | "settings";
+export type Page =
+  | "today"
+  | "calendar"
+  | "x"
+  | "wechat"
+  | "gpu"
+  | "weekly"
+  | "settings";
 export type Repeat = "none" | "daily" | "weekdays" | "weekly" | "monthly";
 export interface Task {
   id: string;
@@ -89,6 +96,29 @@ export interface AppData {
   requests: GpuRequest[];
   settings: Settings;
   notified: string[];
+  reports: WeeklyReportDraft[];
+}
+export interface WeeklyReadingNote {
+  paperTitle: string;
+  publication: string;
+  notes: string;
+}
+export interface WeeklyReportDraft {
+  id: string;
+  weekStart: string;
+  author: string;
+  articleIds: string[];
+  taskIds: string[];
+  includeNonDDL: boolean;
+  readingNotes: Record<string, WeeklyReadingNote>;
+  work: string;
+  ideas: string;
+  nextWeek: string;
+  other: string;
+  markdown: string;
+  updatedAt: string;
+  generatedBasis: string;
+  generationMode: "" | "local" | "ai";
 }
 export interface Secrets {
   aiKey: string;

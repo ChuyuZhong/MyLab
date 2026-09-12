@@ -21,6 +21,7 @@ import { fetchSource } from "./api";
 import { dayKey, safeUrl } from "./core";
 import { Modal, Field, Heading, Empty, ExternalLink, Notice } from "./ui";
 import type { Article, Source } from "./types";
+import { queueReading } from "./weekly";
 export function SourceEditor({
   kind,
   initial,
@@ -338,6 +339,15 @@ export function FeedsPage({ kind }: { kind: "x" | "wechat" }) {
       ),
     );
   const active = data.articles.find((a) => a.id === reading);
+  const addToReport = (id: string) => {
+    try {
+      setData(queueReading(data, id));
+      navigate("weekly");
+      notify("已加入本周周报，可补充阅读笔记");
+    } catch (e) {
+      notify((e as Error).message);
+    }
+  };
   const source = sources.find((s) => s.id === selected);
   async function refresh() {
     if (refreshLock.current) return;
@@ -616,6 +626,13 @@ export function FeedsPage({ kind }: { kind: "x" | "wechat" }) {
               <h2>{active.title}</h2>
               <div className="reader-actions">
                 <ExternalLink url={active.url}>打开原文</ExternalLink>
+                <button
+                  className="text-button"
+                  onClick={() => addToReport(active.id)}
+                >
+                  <FilePlus2 size={15} />
+                  加入本周周报
+                </button>
                 <button
                   className="text-button"
                   onClick={() => setArticleEditor(active)}

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   LayoutDashboard,
   CalendarDays,
@@ -14,6 +14,7 @@ import {
   Sparkles,
   X,
   CheckCircle,
+  FilePenLine,
 } from "lucide-react";
 import { AppProvider, usePersistedData } from "./store";
 import { dayKey, newTask, toggleTask, validDay } from "./core";
@@ -24,16 +25,26 @@ import { SettingsPage } from "./Settings";
 import { Assistant } from "./Assistant";
 import { Notice } from "./ui";
 import type { Page, Secrets, Task, Article } from "./types";
+const WeeklyPage = lazy(() => import("./WeeklyPage"));
 const navItems = [
   { id: "today", icon: LayoutDashboard, label: "今天" },
   { id: "calendar", icon: CalendarDays, label: "日历与计划" },
   { id: "x", icon: Radio, label: "X 动态" },
   { id: "wechat", icon: BookOpen, label: "公众号阅读" },
   { id: "gpu", icon: Cpu, label: "GPU 资源" },
+  { id: "weekly", icon: FilePenLine, label: "写周报" },
 ] as const;
 const pageFromHash = (): Page => {
   const p = location.hash.replace(/^#\/?/, "").split("?")[0];
-  return ["today", "calendar", "x", "wechat", "gpu", "settings"].includes(p)
+  return [
+    "today",
+    "calendar",
+    "x",
+    "wechat",
+    "gpu",
+    "weekly",
+    "settings",
+  ].includes(p)
     ? (p as Page)
     : "today";
 };
@@ -451,6 +462,10 @@ export default function App() {
               <FeedsPage key="wechat" kind="wechat" />
             ) : page === "gpu" ? (
               <GpuPage />
+            ) : page === "weekly" ? (
+              <Suspense fallback={<Notice>正在打开周报工作台…</Notice>}>
+                <WeeklyPage />
+              </Suspense>
             ) : (
               <SettingsPage recoverStorage={recoverStorage} />
             )}

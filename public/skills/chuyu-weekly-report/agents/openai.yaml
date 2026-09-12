@@ -1,0 +1,4 @@
+interface:
+  display_name: "个人科研周报"
+  short_description: "按个人科研周报习惯整理论文评述、已完成事项、下周计划与研究想法"
+  default_prompt: "使用 $chuyu-weekly-report，根据本周论文阅读材料、已完成事项和想法生成 Markdown 周报。"
