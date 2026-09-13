@@ -117,7 +117,9 @@ test("host preserves exact DDL items and refuses fabricated link-only reviews or
     md.includes("核对样本 \\[A\\]（DDL：2026-10-01 18:00；完成：2026-09-09）"),
   );
   assert.ok(md.includes("仅有链接"));
-  assert.ok(md.includes("[原文](https://example.com/paper)"));
+  assert.ok(!md.includes("https://example.com/paper"));
+  assert.ok(md.includes("测试用论文推文"));
+  assert.equal(input.readings[0].url, article.url);
 });
 test("report parser rejects incomplete model answers; local drafts preserve work and independent edited Markdown", () => {
   const draft = {
