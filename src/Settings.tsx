@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Download,
   Upload,
@@ -21,6 +21,13 @@ import {
 } from "./core";
 import { bridgeRequest, callAI } from "./api";
 import { Heading, Field, Notice } from "./ui";
+import {
+  applyConfig,
+  exportConfig,
+  parseConfig,
+  CONFIG_MAX_BYTES,
+  CONFIG_VERSION,
+} from "./config-transfer";
 export function SettingsPage({
   recoverStorage,
 }: {
@@ -29,6 +36,21 @@ export function SettingsPage({
   const { data, setData, secrets, setSecrets, notify } = useApp();
   const [busy, setBusy] = useState("");
   const [status, setStatus] = useState("");
+  const [configStatus, setConfigStatus] = useState("");
+  const [configBusy, setConfigBusy] = useState(false);
+  const [configDownload, setConfigDownload] = useState<{
+    url: string;
+    name: string;
+  } | null>(null);
+  useEffect(
+    () => () => {
+      if (configDownload) URL.revokeObjectURL(configDownload.url);
+    },
+    [configDownload],
+  );
+  const configInput = useRef<HTMLInputElement>(null);
+  const latest = useRef({ data, secrets });
+  latest.current = { data, secrets };
   const settings = data.settings;
   const patch = (p: Partial<typeof settings>) =>
     setData((d) => ({ ...d, settings: { ...d.settings, ...p } }));
@@ -56,6 +78,113 @@ export function SettingsPage({
       <div className="settings-grid">
         <section className="settings-card">
           <div className="settings-title">
+            <Download size={20} />
+            <div>
+              <h2>配置迁移</h2>
+              <p>保存接口、密钥、订阅来源与偏好，更新后选择文件即可恢复。</p>
+            </div>
+          </div>
+          <Notice tone="warning">
+            导出的 JSON 包含明文 API Key、X
+            Token、配对码及私人接口地址，请保存在自己的设备上，勿上传 GitHub
+            或分享。密钥导入后仅用于当前页面，刷新后可再次导入。
+          </Notice>
+          <div className="button-group wrap">
+            <button
+              className="secondary"
+              disabled={configBusy}
+              onClick={() => {
+                try {
+                  const name = `MyLab-settings-v${CONFIG_VERSION}-${dayKey()}.json`;
+                  const text = exportConfig(data, secrets);
+                  const url = URL.createObjectURL(
+                    new Blob([text], {
+                      type: "application/json;charset=utf-8",
+                    }),
+                  );
+                  setConfigDownload({ name, url });
+                  const link = document.createElement("a");
+                  link.href = url;
+                  link.download = name;
+                  link.click();
+                  setConfigStatus(
+                    `已发起配置下载。${secrets.aiKey || secrets.xKey ? "" : "当前未填写模型 API Key 和 X Token，文件中这两项为空。"}请确认浏览器已保存文件。`,
+                  );
+                } catch (e) {
+                  setConfigStatus((e as Error).message);
+                }
+              }}
+            >
+              <Download size={16} />
+              导出配置（含密钥）
+            </button>
+            <button
+              className="secondary"
+              disabled={configBusy}
+              onClick={() => configInput.current?.click()}
+            >
+              <Upload size={16} />
+              {configBusy ? "正在导入…" : "一键导入配置"}
+            </button>
+            <input
+              ref={configInput}
+              hidden
+              type="file"
+              accept=".json,application/json"
+              aria-label="选择配置 JSON 文件"
+              onChange={async (e) => {
+                const input = e.currentTarget,
+                  file = input.files?.[0];
+                if (!file) return;
+                setConfigBusy(true);
+                try {
+                  if (file.size > CONFIG_MAX_BYTES)
+                    throw Error("配置文件不能超过 2 MB");
+                  const config = parseConfig(await file.text());
+                  const next = applyConfig(
+                    latest.current.data,
+                    latest.current.secrets,
+                    config,
+                  );
+                  setData(next.data);
+                  setSecrets(next.secrets);
+                  setStatus("");
+                  setConfigStatus(
+                    "配置已导入：接口、密钥与偏好已应用，订阅按 ID 合并。配对码若已过期，请填写本机服务的新配对码。",
+                  );
+                  notify("配置已恢复");
+                } catch (e) {
+                  setConfigStatus((e as Error).message);
+                } finally {
+                  setConfigBusy(false);
+                  input.value = "";
+                }
+              }}
+            />
+          </div>
+          {configDownload && (
+            <p>
+              <a
+                className="text-button"
+                href={configDownload.url}
+                download={configDownload.name}
+              >
+                若未自动下载，点击保存配置 JSON
+              </a>
+            </p>
+          )}
+          <p className="content-scope">
+            导入会覆盖文件中提供的配置项（空值也会恢复），缺少的项目保留当前值。任务、文章和周报请使用下方的数据备份；本机
+            .env 配置与 GPU 登录会话不在此文件中。
+          </p>
+          {configStatus && (
+            <div role="status">
+              <Notice>{configStatus}</Notice>
+            </div>
+          )}
+        </section>
+        <section className="settings-card">
+          <div className="settings-title">
             <KeyRound size={20} />
             <div>
               <h2>模型与翻译</h2>
@@ -79,7 +208,7 @@ export function SettingsPage({
             </Field>
             <Field
               label="个人 API Key"
-              hint="仅保留在页面内存。刷新或关闭后需重新填写；不会提交 GitHub。"
+              hint="仅保留在页面内存。可用上方配置导出保存，刷新或关闭后导入恢复；不会提交 GitHub。"
             >
               <input
                 type="password"
