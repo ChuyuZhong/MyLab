@@ -26,11 +26,13 @@ import { SettingsPage } from "./Settings";
 import { Assistant } from "./Assistant";
 import { Notice } from "./ui";
 import type { Page, Secrets, Task, Article } from "./types";
+const AihotPage = lazy(() => import("./AihotPage"));
 const WeeklyPage = lazy(() => import("./WeeklyPage"));
 const navItems = [
   { id: "today", icon: LayoutDashboard, label: "今天" },
   { id: "calendar", icon: CalendarDays, label: "日历与计划" },
   { id: "x", icon: Radio, label: "X 动态" },
+  { id: "aihot", icon: Sparkles, label: "AI 情报" },
   { id: "wechat", icon: BookOpen, label: "公众号导读" },
   { id: "gpu", icon: Cpu, label: "GPU 资源" },
   { id: "weekly", icon: FilePenLine, label: "写周报" },
@@ -41,6 +43,7 @@ const pageFromHash = (): Page => {
     "today",
     "calendar",
     "x",
+    "aihot",
     "wechat",
     "gpu",
     "weekly",
@@ -420,6 +423,8 @@ export default function App() {
               <CalendarPage />
             ) : page === "x" ? (
               <FeedsPage key="x" kind="x" />
+            ) : page === "aihot" ? (
+              <Suspense fallback={<Notice>正在打开 AI 情报…</Notice>}><AihotPage /></Suspense>
             ) : page === "wechat" ? (
               <WechatPage />
             ) : page === "gpu" ? (

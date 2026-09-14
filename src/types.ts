@@ -2,6 +2,7 @@ export type Page =
   | "today"
   | "calendar"
   | "x"
+  | "aihot"
   | "wechat"
   | "gpu"
   | "weekly"
