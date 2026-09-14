@@ -85,8 +85,7 @@ export function SettingsPage({
             </div>
           </div>
           <Notice tone="warning">
-            导出的 JSON 包含明文 API Key、X
-            Token、配对码及私人接口地址，请保存在自己的设备上，勿上传 GitHub
+            导出的 JSON 包含明文 API Key、配对码及私人接口地址，请保存在自己的设备上，勿上传 GitHub
             或分享。密钥导入后仅用于当前页面，刷新后可再次导入。
           </Notice>
           <div className="button-group wrap">
@@ -108,7 +107,7 @@ export function SettingsPage({
                   link.download = name;
                   link.click();
                   setConfigStatus(
-                    `已发起配置下载。${secrets.aiKey || secrets.xKey ? "" : "当前未填写模型 API Key 和 X Token，文件中这两项为空。"}请确认浏览器已保存文件。`,
+                    `已发起配置下载。${secrets.aiKey || secrets.xKey ? "" : "当前未填写模型 API Key。"}请确认浏览器已保存文件。`,
                   );
                 } catch (e) {
                   setConfigStatus((e as Error).message);
@@ -220,13 +219,7 @@ export function SettingsPage({
                 placeholder="sk-…"
               />
             </Field>
-            <Field label="默认翻译提示词">
-              <textarea
-                rows={4}
-                value={settings.translationPrompt}
-                onChange={(e) => patch({ translationPrompt: e.target.value })}
-              />
-            </Field>
+            <p className="muted">X 翻译提示词：翻译为中文。</p>
             <div className="button-group">
               <button
                 className="secondary"
@@ -261,7 +254,7 @@ export function SettingsPage({
             <PlugZap size={20} />
             <div>
               <h2>数据连接</h2>
-              <p>本机服务连接实验室内网与外部订阅。</p>
+              <p>本机服务用于微信正文读取与实验室 GPU；X 默认直接连接 FxTwitter。</p>
             </div>
           </div>
           <div className="form-stack">
@@ -300,34 +293,8 @@ export function SettingsPage({
                 placeholder="http://你的实验室地址:端口"
               />
             </Field>
-            <Field
-              label="个人 X API Bearer Token（可选）"
-              hint="仅用于读取你订阅的账号；X 官方接口可能产生使用费用。"
-            >
-              <input
-                type="password"
-                autoComplete="off"
-                value={secrets.xKey}
-                onChange={(e) =>
-                  setSecrets((s) => ({ ...s, xKey: e.target.value }))
-                }
-              />
-            </Field>
             <div className="form-grid">
-              <Field label="自定义订阅读取方式">
-                <select
-                  value={settings.feedMode}
-                  onChange={(e) =>
-                    patch({
-                      feedMode: e.target.value as typeof settings.feedMode,
-                    })
-                  }
-                >
-                  <option value="bridge">通过本机服务</option>
-                  <option value="direct">浏览器直接读取</option>
-                </select>
-              </Field>
-              <Field label="X 页面自动检查（公众号在阅读页单独设置）">
+              <Field label="X 自动检查间隔（页面打开时）">
                 <select
                   value={settings.autoRefresh}
                   onChange={(e) =>

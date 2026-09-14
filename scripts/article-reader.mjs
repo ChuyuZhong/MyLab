@@ -17,9 +17,27 @@ export function extractWechatArticle(html) {
     root = $("#js_content").first();
   if (!root.length)
     throw Error(
-      "微信未提供正文，可能需要在微信中验证、登录，或文章已失效。请打开原文后粘贴正文，或接入全文 RSS。",
+      "微信未提供正文，可能需要在微信中验证、登录，或文章已失效。请打开原文后粘贴正文。",
     );
   root.find("script,style,iframe,object,svg,form").remove();
+  const render = (node) => {
+    if (node.type === "text") return (node.data || "").replace(/([\\`*_[\]<>])/g, "\\$1");
+    const el = $(node), tag = node.name;
+    if (tag === "img") {
+      const src = el.attr("data-src") || el.attr("src") || "";
+      try { const u = new URL(src); if (u.protocol === "https:" && /(^|\.)qpic\.cn$/.test(u.hostname)) return `\n\n![](${u.href})\n\n`; } catch {}
+      return "";
+    }
+    const text = el.contents().toArray().map(render).join("");
+    if (tag === "br") return "\n";
+    if (/^h[1-6]$/.test(tag)) return `\n\n${"#".repeat(Number(tag[1]))} ${text}\n\n`;
+    if (["p", "section", "div", "blockquote", "tr"].includes(tag)) return `\n\n${text}\n\n`;
+    if (tag === "li") return `\n- ${text}\n`;
+    if (tag === "td" || tag === "th") return `${text} | `;
+    return text;
+  };
+  const contentMarkdown = root.contents().toArray().map(render).join("").replace(/\n{3,}/g,"\n\n").trim();
+  const timestamp = html.match(/var\s+(?:ct|create_time)\s*=\s*["'](\d{10})["']/)?.[1];
   root.find("br").replaceWith("\n");
   root.find("p,section,div,li,h1,h2,h3,h4,blockquote,tr").append("\n");
   const content = root
@@ -39,8 +57,10 @@ export function extractWechatArticle(html) {
       "",
     author: $("#js_name").text().trim(),
     content,
+    contentMarkdown,
+    publishedAt: timestamp ? new Date(Number(timestamp) * 1000).toISOString() : "",
     contentScope: "full",
     fetchedAt: new Date().toISOString(),
-    note: "提取文字正文，不包含图片、视频或评论。",
+    note: "包含正文和原站图片；视频、交互内容及评论请查看原文。",
   };
 }

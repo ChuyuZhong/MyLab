@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   Cpu,
   Plus,
@@ -27,7 +27,14 @@ export function GpuPage() {
   const [password, setPassword] = useState("");
   const [request, setRequest] = useState<GpuRequest | null>(null);
   const [pool, setPool] = useState("all");
-  async function refresh() {
+  const [card, setCard] = useState<{agent: string; slot: string} | null>(null);
+  const [monitor, setMonitor] = useState(true);
+  const refreshing = useRef(false);
+  const selectedAgent = snapshot?.agents.find(a => a.id === card?.agent);
+  const selectedSlot = selectedAgent?.slots.find(s => s.id === card?.slot);
+  async function refresh(quiet = false) {
+    if (refreshing.current) return;
+    refreshing.current = true;
     setBusy(true);
     try {
       const s = await bridgeRequest(data.settings, secrets, "/gpu");
@@ -35,16 +42,25 @@ export function GpuPage() {
         throw Error("资源接口返回格式不正确");
       setSnapshot(s);
       setError("");
-      notify(`已读取 ${s.agents.length} 个节点的真实资源状态`);
+      if (!quiet) notify(`已读取 ${s.agents.length} 个节点的真实资源状态`);
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setBusy(false);
+      refreshing.current = false;
     }
   }
   useEffect(() => {
     if (secrets.bridgeKey) void refresh();
   }, []);
+  const refreshRef = useRef(refresh); refreshRef.current = refresh;
+  useEffect(() => {
+    if (!monitor || !secrets.bridgeKey) return;
+    const check = () => {if(document.visibilityState === "visible") void refreshRef.current(true);};
+    const timer = setInterval(check, 30000);
+    document.addEventListener("visibilitychange", check);
+    return () => {clearInterval(timer);document.removeEventListener("visibilitychange",check);};
+  }, [monitor,secrets.bridgeKey]);
   const agents =
     snapshot?.agents.filter(
       (a) => pool === "all" || a.resourcePool.split(", ").includes(pool),
@@ -80,6 +96,7 @@ export function GpuPage() {
         }
       />
       <div className="gpu-toolbar">
+        <label><input type="checkbox" checked={monitor} onChange={e=>setMonitor(e.target.checked)}/> 每 30 秒监测（页面可见时）</label>
         <div className="button-group">
           <span
             className={"status-tag " + (snapshot && !error ? "success" : "")}
@@ -101,7 +118,7 @@ export function GpuPage() {
             <PlugZap size={16} />
             连接 / 登录
           </button>
-          <button className="secondary" onClick={refresh} disabled={busy}>
+          <button className="secondary" onClick={() => void refresh()} disabled={busy}>
             <RefreshCw size={16} className={busy ? "spin" : ""} />
             {busy ? "读取中" : "刷新"}
           </button>
@@ -202,7 +219,8 @@ export function GpuPage() {
               </p>
               <div className="gpu-slot-grid">
                 {a.slots.map((s) => (
-                  <div
+                  <button
+                    onClick={() => setCard({agent:a.id,slot:s.id})}
                     key={s.id}
                     className={
                       "gpu-slot " +
@@ -223,7 +241,7 @@ export function GpuPage() {
                           ? "已分配"
                           : "未分配"}
                     </span>
-                  </div>
+                  </button>
                 ))}
               </div>
               <div className="node-footer">
@@ -359,6 +377,22 @@ export function GpuPage() {
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+      {card && (
+        <Modal drawer title="GPU 详情" onClose={() => setCard(null)}>
+          <div className="gpu-detail">
+            <h3>{selectedAgent?.name || card.agent} · GPU {card.slot}</h3>
+            {!selectedSlot ? <Notice tone="warning">该卡已不在当前资源快照中。</Notice> : <>
+              <dl><dt>型号</dt><dd>{selectedSlot.device}</dd><dt>资源池</dt><dd>{selectedAgent?.resourcePool}</dd><dt>调度状态</dt><dd>{selectedSlot.state}</dd><dt>启用状态</dt><dd>{selectedAgent?.enabled && selectedSlot.enabled ? "启用" : "禁用"}</dd><dt>显存</dt><dd>{selectedSlot.memory === null ? "接口未提供" : `${selectedSlot.memory} GB`}</dd><dt>更新时间</dt><dd>{snapshot && new Date(snapshot.fetchedAt).toLocaleString("zh-CN")}</dd></dl>
+              {error && <Notice tone="warning">连接异常，当前状态可能已过期。</Notice>}
+              <button className="primary" disabled={busy || !!error || !selectedAgent?.enabled || !selectedSlot.enabled || selectedSlot.allocated || !snapshot || Date.now()-Date.parse(snapshot.fetchedAt)>60000} onClick={() => {
+                setRequest({id:crypto.randomUUID(),title:`${selectedSlot.device} 实验申请`,count:1,memory:selectedSlot.memory || 24,start:"",hours:24,notes:`目标节点：${selectedAgent?.name}\nGPU：${selectedSlot.id}\n资源池：${selectedAgent?.resourcePool}`,status:"draft",createdAt:new Date().toISOString()});setCard(null);
+              }}>使用这张卡填写申请</button>
+              <Notice>将自动填写目标卡信息。正式提交入口待集群文档确认，当前仅保存个人申请草稿。</Notice>
+              <ExternalLink local url={data.settings.gpuUrl.replace(/\/$/,"")+"/det/clusters"}>前往集群管理系统</ExternalLink>
+            </>}
+          </div>
         </Modal>
       )}
       {request && (

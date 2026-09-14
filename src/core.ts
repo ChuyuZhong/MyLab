@@ -39,15 +39,7 @@ export function defaultData(): AppData {
         name: "Tibo",
         handle: "thsottiaux",
         url: "https://x.com/thsottiaux",
-        feedUrl: "",
-      },
-      {
-        id: "wechat-rsdl",
-        kind: "wechat",
-        name: "遥感与深度学习",
-        handle: "",
-        url: "",
-        feedUrl: "",
+        feedUrl: "https://fxtwitter.com/thsottiaux/feed.xml",
       },
     ],
     settings: {
@@ -56,12 +48,12 @@ export function defaultData(): AppData {
       aiBase: "https://api.deepseek.com",
       aiModel: "deepseek-flash",
       translationPrompt:
-        "将以下内容翻译为简体中文，保留原意、段落、链接、代码及必要的专业术语，不补充原文没有的信息。仅返回译文。",
+        "翻译为中文。",
       bridgeUrl: "http://127.0.0.1:4318",
       gpuUrl: "",
-      feedMode: "bridge",
-      autoRefresh: 0,
-      wechatRefresh: 5,
+      feedMode: "direct",
+      autoRefresh: 15,
+      wechatRefresh: 0,
       assistantHints: true,
     },
   };

@@ -1,6 +1,30 @@
 import type { Article, Settings, Secrets, Source, FeedResult } from "./types";
 import { safeUrl } from "./core";
 import { fetchRSDL } from "./rsdl-client";
+const fullPostCache = new Map<string, string>();
+async function completeXPosts(items: Article[], signal?: AbortSignal) {
+  for (const a of items) {
+    if (!/(?:…|\.\.\.)\s*$/.test(a.content)) continue;
+    a.contentScope = "excerpt";
+    const id = a.url.match(/\/status\/(\d+)/)?.[1];
+    if (!id) continue;
+    try {
+      let text = fullPostCache.get(id);
+      if (!text) {
+        const response = await fetch(`https://api.fxtwitter.com/status/${id}`, {signal: signal ? AbortSignal.any([signal,AbortSignal.timeout(12000)]) : AbortSignal.timeout(12000)});
+        if (!response.ok) throw Error("全文接口暂不可用");
+        const json = await response.json();
+        if (json.code !== 200 || typeof json.tweet?.text !== "string") throw Error("全文缺失");
+        text = json.tweet.text;
+        if (json.tweet.quote?.text) text += `\n\n引用 @${json.tweet.quote.author?.screen_name || ""}：\n${json.tweet.quote.text}`;
+        fullPostCache.set(id,text!);
+        if (fullPostCache.size > 100) fullPostCache.delete(fullPostCache.keys().next().value!);
+      }
+      a.content = text!; a.contentScope = "full";
+    } catch { if (signal?.aborted) throw Error("已取消"); a.provenance += " · 全文补充失败，请查看原帖"; }
+  }
+  return items;
+}
 export async function bridgeRequest(
   settings: Settings,
   secrets: Secrets,
@@ -143,7 +167,7 @@ export function parseFeed(text: string, source: Source): Article[] {
         rawDate && !isNaN(Date.parse(rawDate))
           ? new Date(rawDate).toISOString()
           : "",
-      contentScope: full ? "full" : "excerpt",
+      contentScope: full || source.kind === "x" ? "full" : "excerpt",
     };
   });
 }
@@ -166,21 +190,23 @@ export async function fetchSource(
           .at(-1) || "",
     },
   });
-  if (source.feedUrl) {
+  if (source.feedUrl || source.kind === "x") {
+    const feedUrl = source.kind === "x" ? `https://fxtwitter.com/${source.handle}/feed.xml` : source.feedUrl;
+    const throughBridge = source.kind !== "x" && settings.feedMode === "bridge";
     let text: string;
-    if (settings.feedMode === "bridge") {
+    if (throughBridge) {
       text = (
         await bridgeRequest(
           settings,
           secrets,
           "/feed",
-          { url: source.feedUrl },
+          { url: feedUrl },
           signal,
         )
       ).text;
     } else {
       try {
-        const r = await fetch(safeUrl(source.feedUrl), {
+        const r = await fetch(safeUrl(feedUrl), {
           signal: signal
             ? AbortSignal.any([signal, AbortSignal.timeout(20000)])
             : AbortSignal.timeout(20000),
@@ -190,28 +216,13 @@ export async function fetchSource(
         if (!r.ok) throw Error(String(r.status));
         text = await r.text();
       } catch {
-        throw Error("订阅地址无法直接读取。可在设置中切换为通过本机服务读取。");
+        throw Error("FxTwitter 暂时无法读取，请检查网络后重试。");
       }
     }
+    const parsed = parseFeed(text, source).sort((a,b)=>b.publishedAt.localeCompare(a.publishedAt));
     return result(
-      parseFeed(text, source),
-      settings.feedMode === "bridge" ? "bridge" : "live",
-    );
-  }
-  if (source.kind === "x") {
-    const response = await bridgeRequest(
-      settings,
-      secrets,
-      "/x",
-      {
-        handle: source.handle,
-        key: secrets.xKey,
-      },
-      signal,
-    );
-    return result(
-      response.items.map((a: Article) => ({ ...a, sourceId: source.id })),
-      "bridge",
+      source.kind === "x" ? await completeXPosts(parsed.slice(0,20),signal) : parsed,
+      throughBridge ? "bridge" : "live",
     );
   }
   if (source.id === "wechat-rsdl") {

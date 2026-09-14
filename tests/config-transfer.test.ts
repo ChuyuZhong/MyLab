@@ -39,10 +39,10 @@ test("configuration import leaves tasks, articles, weekly drafts and unrelated s
   assert.equal(out.data.tasks, d.tasks);
   assert.equal(out.data.reports, d.reports);
   assert.equal(out.data.articles, d.articles);
-  assert.equal(out.data.sources.length, 3);
+  assert.equal(out.data.sources.length, 2);
   assert.deepEqual(d, before);
   const again = applyConfig(out.data, out.secrets, parseConfig(fixture));
-  assert.equal(again.data.sources.length, 3);
+  assert.equal(again.data.sources.length, 2);
   const saved = JSON.parse(exportConfig(out.data, out.secrets));
   assert.equal(saved.tasks, undefined);
   assert.equal(saved.reports, undefined);

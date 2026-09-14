@@ -118,6 +118,7 @@ test("refresh preserves legacy article IDs, user content and weekly notes while 
   };
   assert.equal(articleIdentity(old), articleIdentity(fresh));
   const data = defaultData();
+  data.sources.push({id:"wechat-rsdl",kind:"wechat",name:"遥感与深度学习",handle:"",url:"",feedUrl:""});
   data.articles = [old];
   data.reports = [
     {
@@ -161,15 +162,26 @@ test("refresh preserves legacy article IDs, user content and weekly notes while 
 test("older settings gain a WeChat refresh interval and sync metadata survives backup validation", () => {
   const data = defaultData();
   const { wechatRefresh, ...settings } = data.settings;
-  assert.equal(validateBackup({ ...data, settings }).settings.wechatRefresh, 5);
+  assert.equal(validateBackup({ ...data, settings }).settings.wechatRefresh, 0);
   data.settings.wechatRefresh = 1;
   assert.equal(validateBackup(data).settings.wechatRefresh, 1);
-  data.sources[1].sync = {
+  data.sources[0].sync = {
     mode: "snapshot",
     checkedAt: "2026-09-12T10:00:00Z",
     dataAt: "2026-08-17T00:00:00Z",
     latestItemAt: "2026-08-12T00:00:00Z",
     warning: "缓存",
   };
-  assert.equal(validateBackup(data).sources[1].sync?.mode, "snapshot");
+  assert.equal(validateBackup(data).sources[0].sync?.mode, "snapshot");
+});
+
+test("X refresh bounds history to twenty while retaining bookmarks and report references", () => {
+  const data = defaultData(), sourceId = data.sources[0].id;
+  const items = Array.from({length:25}, (_,i) => ({id:`post-${i}`,sourceId,kind:"x" as const,author:"Tibo",title:"",content:"Full post",url:`https://x.com/thsottiaux/status/${i}`,publishedAt:new Date(1700000000000+i*60000).toISOString(),read:false,saved:i===0,contentScope:"full" as const,provenance:"订阅源"}));
+  const report = emptyReport("2026-09-14"); report.articleIds=["post-1"]; data.reports=[report];
+  const next=applyFeedResult(data,sourceId,{items,sync:{mode:"live",checkedAt:new Date().toISOString(),dataAt:new Date().toISOString(),latestItemAt:items[24].publishedAt}});
+  assert.equal(next.articles.length,22);
+  assert.ok(next.articles.some(a=>a.id==="post-0"));
+  assert.ok(next.articles.some(a=>a.id==="post-1"));
+  assert.ok(!next.articles.some(a=>a.id==="post-2"));
 });

@@ -78,7 +78,7 @@ export function Assistant({
       const translation = Boolean(scope && /翻译/.test(text));
       const context = contextEnabled
         ? scope
-          ? `当前文章（${scope.contentScope === "full" ? "全文" : "节选，不得冒充全文"}）\n标题：${scope.title}\n来源：${scope.url}\n内容：${scope.content.slice(0, 24000)}`
+          ? `当前文章（${scope.contentScope === "full" ? "全文" : "节选，不得冒充全文"}）\n标题：${scope.title}\n来源：${scope.url}\n内容：${scope.content}`
           : `今天的未完成待办：\n${data.tasks
               .filter((t) => !t.completedAt && (!t.date || t.date <= dayKey()))
               .map(
@@ -92,7 +92,7 @@ export function Assistant({
       const result = await callAI(
         data.settings,
         secrets.aiKey,
-        [
+        translation && scope ? [{role:"system",content:"翻译为中文。"},{role:"user",content:scope.content}] : [
           {
             role: "system",
             content:

@@ -3,8 +3,6 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-  schedule:
-    - cron: "17 */6 * * *"
 permissions:
   contents: read
   pages: write
@@ -22,8 +20,6 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci
-      - name: Refresh public article directory and selected public post snapshots
-        run: node scripts/refresh-public.mjs
       - run: npm test
       - run: npm run build
       - uses: actions/configure-pages@v5

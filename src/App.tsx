@@ -1,3 +1,4 @@
+import { WechatPage } from "./Wechat";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   LayoutDashboard,
@@ -30,7 +31,7 @@ const navItems = [
   { id: "today", icon: LayoutDashboard, label: "今天" },
   { id: "calendar", icon: CalendarDays, label: "日历与计划" },
   { id: "x", icon: Radio, label: "X 动态" },
-  { id: "wechat", icon: BookOpen, label: "公众号阅读" },
+  { id: "wechat", icon: BookOpen, label: "公众号导读" },
   { id: "gpu", icon: Cpu, label: "GPU 资源" },
   { id: "weekly", icon: FilePenLine, label: "写周报" },
 ] as const;
@@ -151,46 +152,6 @@ export default function App() {
       });
     }
   }, [now, setData]);
-  useEffect(() => {
-    let alive = true;
-    async function load() {
-      // WeChat revalidates the live directory on entering its page, with a cache fallback.
-      for (const name of ["x"]) {
-        try {
-          const r = await fetch(`./data/${name}.json`, { cache: "no-cache" });
-          if (!r.ok) continue;
-          const j = await r.json();
-          if (!alive || !Array.isArray(j.items)) continue;
-          const valid = j.items.filter(
-            (a: Article) =>
-              a &&
-              typeof a.id === "string" &&
-              typeof a.title === "string" &&
-              typeof a.content === "string" &&
-              typeof a.url === "string" &&
-              ["x", "wechat"].includes(a.kind),
-          );
-          setData((d) => {
-            const ids = new Set(d.articles.map((a) => a.id));
-            const fresh = valid.filter((a: Article) => !ids.has(a.id));
-            return {
-              ...d,
-              articles: [...d.articles, ...fresh],
-              sources: d.sources.map((s) =>
-                s.id === j.sourceId && !s.lastFetched
-                  ? { ...s, lastFetched: j.fetchedAt }
-                  : s,
-              ),
-            };
-          });
-        } catch {}
-      }
-    }
-    void load();
-    return () => {
-      alive = false;
-    };
-  }, [setData]);
   useEffect(() => {
     type Context = { registerTool: (tool: unknown, options: unknown) => void };
     const context = (document as unknown as { modelContext?: Context })
@@ -460,7 +421,7 @@ export default function App() {
             ) : page === "x" ? (
               <FeedsPage key="x" kind="x" />
             ) : page === "wechat" ? (
-              <FeedsPage key="wechat" kind="wechat" />
+              <WechatPage />
             ) : page === "gpu" ? (
               <GpuPage />
             ) : page === "weekly" ? (

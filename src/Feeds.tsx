@@ -63,6 +63,7 @@ export function SourceEditor({
               return;
             }
             s.url = `https://x.com/${s.handle}`;
+            s.feedUrl = `https://fxtwitter.com/${s.handle}/feed.xml`;
             s.name = s.name || s.handle;
           }
           if (!s.name) {
@@ -114,22 +115,6 @@ export function SourceEditor({
             />
           </Field>
         )}
-        <Field
-          label="RSS / Atom / JSON 订阅地址（可选）"
-          hint={
-            kind === "x"
-              ? "留空则使用本机服务连接 X 官方 API，需要填写 X API Token。"
-              : "RSDL 预设可直接更新；其他公众号需填写可用订阅地址，仅填名称不能自动获取新文章。留空可手动导入。"
-          }
-        >
-          <input
-            value={source.feedUrl}
-            onChange={(e) =>
-              setSource((s) => ({ ...s, feedUrl: e.target.value }))
-            }
-            placeholder="https://…/feed.xml"
-          />
-        </Field>
         <Field label="来源配色">
           <div className="source-color-picker">
             {SOURCE_COLORS.map(([key, label, color]) => (
@@ -257,7 +242,7 @@ export function ArticleEditor({
           />
         </Field>
         <div className="form-grid">
-          <Field label="所属订阅">
+          {kind === "wechat" ? <Field label="公众号名称"><input value={article.author} onChange={e => setArticle(a => ({...a, author:e.target.value}))}/></Field> : <Field label="所属订阅">
             <select
               value={article.sourceId}
               onChange={(e) =>
@@ -273,7 +258,7 @@ export function ArticleEditor({
                   </option>
                 ))}
             </select>
-          </Field>
+          </Field>}
           <Field label="内容范围">
             <select
               value={article.contentScope}
@@ -299,7 +284,7 @@ export function ArticleEditor({
             maxLength={100000}
             value={article.content}
             onChange={(e) =>
-              setArticle((a) => ({ ...a, content: e.target.value }))
+              setArticle((a) => ({ ...a, content: e.target.value, contentMarkdown: undefined }))
             }
           />
         </Field>
@@ -315,9 +300,9 @@ export function ArticleEditor({
 }
 const stamp = (a: Article) =>
   a.publishedAt
-    ? new Date(a.publishedAt).toLocaleDateString("zh-CN")
+    ? new Date(a.publishedAt).toLocaleString("zh-CN", {year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false})
     : a.indexedAt
-      ? new Date(a.indexedAt).toLocaleDateString("zh-CN") + " 收录"
+      ? new Date(a.indexedAt).toLocaleString("zh-CN", {year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false}) + " 收录"
       : "原文日期未提供";
 export function FeedsPage({ kind }: { kind: "x" | "wechat" }) {
   const {
@@ -342,7 +327,7 @@ export function FeedsPage({ kind }: { kind: "x" | "wechat" }) {
   const refreshLock = useRef(false);
   const refreshController = useRef<AbortController | null>(null);
   const lastCheck = useRef(0);
-  const [visibleCount, setVisibleCount] = useState(50);
+  const [visibleCount, setVisibleCount] = useState(20);
   const [readingBusy, setReadingBusy] = useState("");
   const [readingError, setReadingError] = useState<{
     id: string;
@@ -517,7 +502,7 @@ export function FeedsPage({ kind }: { kind: "x" | "wechat" }) {
         ? data.settings.wechatRefresh
         : data.settings.autoRefresh;
     const initial = setTimeout(() => {
-      if (kind === "wechat") void refreshRef.current(true, true);
+      if (kind === "x") void refreshRef.current(true, true);
     }, 0);
     const onVisible = () => {
       if (
@@ -542,9 +527,9 @@ export function FeedsPage({ kind }: { kind: "x" | "wechat" }) {
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
     };
-  }, [data.settings.autoRefresh, data.settings.wechatRefresh, kind]);
+  }, [data.settings.autoRefresh, data.settings.wechatRefresh, kind, sources.map(s => s.id).join(",")]);
   useEffect(() => () => refreshController.current?.abort(), []);
-  useEffect(() => setVisibleCount(50), [selected, filter, search, query]);
+  useEffect(() => setVisibleCount(20), [selected, filter, search, query]);
   const update = (id: string, p: Partial<Article>) =>
     setData((d) => ({
       ...d,
@@ -727,15 +712,7 @@ export function FeedsPage({ kind }: { kind: "x" | "wechat" }) {
               </button>
             </Notice>
           ))}
-          {kind === "x" && !secrets.xKey && (
-            <Notice>
-              预设内容为公开帖快照，不代表完整时间线。接入个人 X API Token 或
-              RSS 后可获取近期动态。
-              <ExternalLink url="https://x.com/thsottiaux">
-                打开 Tibo 主页
-              </ExternalLink>
-            </Notice>
-          )}
+          {kind === "x" && <Notice>通过 FxTwitter 检查近期动态；默认展示最新 20 条，页面打开时自动检查，后台暂停。原文完整显示，不生成标题。</Notice>}
           {kind === "wechat" && (
             <>
               <div className="feed-auto-bar">

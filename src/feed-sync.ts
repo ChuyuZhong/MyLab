@@ -49,9 +49,14 @@ export function applyFeedResult(
     result.items,
     result.sync.mode !== "snapshot",
   );
+  // Bound the timeline without deleting bookmarks or weekly-report material.
+  const protectedIds = new Set(data.reports.flatMap(r => r.articleIds));
+  const latest = new Set(merged.articles.filter(a => a.kind === "x" && a.sourceId === sourceId)
+    .sort((a,b) => b.publishedAt.localeCompare(a.publishedAt)).slice(0,20).map(a => a.id));
+  const retained = merged.articles.filter(a => a.kind !== "x" || a.sourceId !== sourceId || latest.has(a.id) || a.saved || protectedIds.has(a.id));
   return {
     ...data,
-    articles: merged.articles,
+    articles: retained,
     sources: data.sources.map((s) =>
       s.id === sourceId
         ? {

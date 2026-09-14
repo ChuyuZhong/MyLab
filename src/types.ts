@@ -67,6 +67,7 @@ export interface Article {
   kind: "x" | "wechat";
   title: string;
   content: string;
+  contentMarkdown?: string;
   url: string;
   publishedAt: string;
   indexedAt?: string;

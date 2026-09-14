@@ -157,9 +157,9 @@ async function publicText(value, depth = 0, articleOnly = false) {
       u,
       {
         headers: {
-          "User-Agent": "MyLab-Personal-Reader/0.1",
+          "User-Agent": articleOnly ? "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.34(0x16082222) NetType/WIFI Language/zh_CN" : "MyLab-Personal-Reader/0.1",
           Accept:
-            "application/rss+xml, application/atom+xml, application/json, text/xml",
+            articleOnly ? "text/html" : "application/rss+xml, application/atom+xml, application/json, text/xml",
         },
         lookup: (_h, opts, cb) =>
           opts.all
@@ -195,9 +195,9 @@ async function publicText(value, depth = 0, articleOnly = false) {
         res.setEncoding("utf8");
         res.on("data", (s) => {
           data += s;
-          if (data.length > 3_000_000) {
+          if (data.length > (articleOnly ? 8_000_000 : 3_000_000)) {
             r.destroy();
-            reject(Error("订阅内容超过 3 MB"));
+            reject(Error("返回内容超过读取大小限制"));
           }
         });
         res.on("end", () => resolve(data));
