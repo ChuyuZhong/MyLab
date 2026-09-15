@@ -1,4 +1,4 @@
-import {gpuConfigs,startGpuShell,gpuJob,gpuMetrics} from "./gpu-local.mjs";
+import {templates,poolAvailability,submit,readJob,killTask,assertOwner,safeTask,taskMonitor} from './gpu-control.mjs';
 import http from "node:http";
 import https from "node:https";
 import dns from "node:dns/promises";
@@ -303,13 +303,20 @@ const server = http.createServer(async (req, res) => {
       json(res, 200, await login(q.base, q.username, q.password));
       return;
     }
-    if(path==="/gpu/configs" && req.method==="POST"){const q=await body(req);json(res,200,await gpuConfigs(q.name));return;}
-    if(path==="/gpu/submit" && req.method==="POST"){const q=await body(req);json(res,200,await startGpuShell(q,{base:gpuBase,token:gpuToken,username:gpuUsername}));return;}
-    if(path==="/gpu/job" && req.method==="POST"){const q=await body(req);json(res,200,gpuJob(q.key,gpuUsername));return;}
-    if(path==="/gpu/metrics" && req.method==="POST"){
-      const q=await body(req), a=await gpuGet("/api/v1/agents");
-      const slot=Object.values(a.agents.find(x=>x.id===q.agent)?.slots||{}).find(s=>s.id===q.slot);
-      if(!slot)throw Error("该板卡已不在集群中");json(res,200,await gpuMetrics(slot.device?.uuid));return;
+    if(path==="/gpu/options" && req.method==="GET"){
+      const a=await gpuGet('/api/v1/agents');json(res,200,{pools:Object.entries(templates).map(([pool,file])=>({pool,file,available:poolAvailability(a.agents||[],pool)}))});return;
+    }
+    if(path==="/gpu/submit" && req.method==="POST"){const q=await body(req);json(res,200,await submit(q,{base:gpuBase,token:gpuToken,username:gpuUsername},async()=>(await gpuGet('/api/v1/agents')).agents||[]));return;}
+    if(path==="/gpu/job" && req.method==="POST"){const q=await body(req);json(res,200,await readJob(q.key,gpuUsername));return;}
+    if(path==="/gpu/tasks" && req.method==="GET"){
+      const r=await gpuGet('/api/v1/shells?users='+encodeURIComponent(gpuUsername));json(res,200,{tasks:(r.shells||[]).filter(s=>s.username===gpuUsername).map(safeTask)});return;
+    }
+    if(path==="/gpu/kill" && req.method==="POST"){
+      const q=await body(req);json(res,200,await killTask(q.taskId,{base:gpuBase,token:gpuToken,username:gpuUsername},async id=>(await gpuGet('/api/v1/shells/'+encodeURIComponent(id))).shell));return;
+    }
+    if(path==="/gpu/task-monitor" && req.method==="POST"){
+      const q=await body(req);if(typeof q.taskId!=='string')throw Error('任务 ID 无效');
+      const r=await gpuGet('/api/v1/shells/'+encodeURIComponent(q.taskId));assertOwner(r.shell,gpuUsername);json(res,200,await taskMonitor(q.taskId));return;
     }
     if (path === "/gpu" && req.method === "GET") {
       const [a, p, m] = await Promise.all([
@@ -368,7 +375,7 @@ const server = http.createServer(async (req, res) => {
       json(res, 200, await xPosts(q.handle, q.key));
       return;
     }
-    json(res, 404, { error: "此操作未提供；本机服务只支持查询。" });
+    json(res, 404, { error: "此接口未提供。" });
   } catch (e) {
     json(res, 400, { error: e.message || "连接请求失败" });
   }

@@ -1,4 +1,4 @@
-import {GpuMetrics,LocalGpuApply} from "./GpuTools";
+import {GpuApply,MyGpuTasks} from "./GpuTools";
 import { useEffect, useState, useRef } from "react";
 import {
   Cpu,
@@ -29,6 +29,8 @@ export function GpuPage() {
   const [request, setRequest] = useState<GpuRequest | null>(null);
   const [pool, setPool] = useState("all");
   const [card, setCard] = useState<{agent: string; slot: string} | null>(null);
+  const [revision,setRevision]=useState(0);
+  const [applyPool,setApplyPool]=useState("");
   const [monitor, setMonitor] = useState(true);
   const refreshing = useRef(false);
   const selectedAgent = snapshot?.agents.find(a => a.id === card?.agent);
@@ -42,6 +44,7 @@ export function GpuPage() {
       if (!Array.isArray(s.agents) || !Array.isArray(s.pools))
         throw Error("资源接口返回格式不正确");
       setSnapshot(s);
+      setRevision(r=>r+1);
       setError("");
       if (!quiet) notify(`已读取 ${s.agents.length} 个节点的真实资源状态`);
     } catch (e) {
@@ -167,7 +170,7 @@ export function GpuPage() {
         })}
       </div>
       <div className="section-heading">
-        <h2>节点与资源池</h2>
+        <h2>节点与资源池</h2><div className="button-group">{["s3-4090","d2-a800"].map(p=><button className="secondary" key={p} onClick={()=>setApplyPool(p)}>申请 {p}</button>)}</div>
         <select
           className="inline-select"
           aria-label="筛选资源池"
@@ -257,7 +260,7 @@ export function GpuPage() {
       )}
       <Notice>
         “未分配”是调度器的分配状态，不代表 GPU
-        利用率或申请权限。当前接口未提供实时显存占用；可在下方通过本机提交申请；资源释放在原管理系统完成。
+        利用率或申请权限。点击空闲卡在侧栏申请；我的集群任务支持监控与释放。
       </Notice>
       <div className="section-heading requests-heading">
         <h2>我的申请与使用记录</h2>
@@ -380,7 +383,8 @@ export function GpuPage() {
           </form>
         </Modal>
       )}
-      <LocalGpuApply />
+      <MyGpuTasks revision={revision}/>
+      {applyPool && <Modal drawer title="申请资源" onClose={()=>setApplyPool("")}><GpuApply pool={applyPool} onCreated={()=>{setRevision(r=>r+1);void refresh(true);}}/></Modal>}
       {card && (
         <Modal drawer title="GPU 详情" onClose={() => setCard(null)}>
           <div className="gpu-detail">
@@ -388,11 +392,8 @@ export function GpuPage() {
             {!selectedSlot ? <Notice tone="warning">该卡已不在当前资源快照中。</Notice> : <>
               <dl><dt>型号</dt><dd>{selectedSlot.device}</dd><dt>资源池</dt><dd>{selectedAgent?.resourcePool}</dd><dt>调度状态</dt><dd>{selectedSlot.state}</dd><dt>启用状态</dt><dd>{selectedAgent?.enabled && selectedSlot.enabled ? "启用" : "禁用"}</dd><dt>显存</dt><dd>{selectedSlot.memory === null ? "接口未提供" : `${selectedSlot.memory} GB`}</dd><dt>更新时间</dt><dd>{snapshot && new Date(snapshot.fetchedAt).toLocaleString("zh-CN")}</dd></dl>
               {error && <Notice tone="warning">连接异常，当前状态可能已过期。</Notice>}
-              <GpuMetrics agent={card.agent} slot={card.slot}/>
-              <button className="primary" disabled={busy || !!error || !selectedAgent?.enabled || !selectedSlot.enabled || selectedSlot.allocated || !snapshot || Date.now()-Date.parse(snapshot.fetchedAt)>60000} onClick={() => {
-                setRequest({id:crypto.randomUUID(),title:`${selectedSlot.device} 实验申请`,count:1,memory:selectedSlot.memory || 24,start:"",hours:24,notes:`目标节点：${selectedAgent?.name}\nGPU：${selectedSlot.id}\n资源池：${selectedAgent?.resourcePool}`,status:"draft",createdAt:new Date().toISOString()});setCard(null);
-              }}>使用这张卡填写申请</button>
-              <Notice>将自动填写目标卡信息。此按钮填写草稿。正式申请请使用页面下方“通过本机申请资源”，按 YAML 资源池调度。</Notice>
+              {selectedAgent?.enabled && selectedSlot.enabled && !selectedSlot.allocated && !error && <GpuApply key={selectedAgent.resourcePool} pool={selectedAgent.resourcePool.split(', ').find(p=>['s3-4090','d2-a800'].includes(p))||selectedAgent.resourcePool} onCreated={()=>{setRevision(r=>r+1);void refresh(true);}}/>}
+              <Notice>任务的逐卡监控、开始日期、Max days 与释放操作位于“我的集群任务”详情。申请按资源池调度。</Notice>
               <ExternalLink local url={data.settings.gpuUrl.replace(/\/$/,"")+"/det/clusters"}>前往集群管理系统</ExternalLink>
             </>}
           </div>
