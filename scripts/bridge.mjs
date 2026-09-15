@@ -1,3 +1,4 @@
+import {gpuConfigs,startGpuShell,gpuJob,gpuMetrics} from "./gpu-local.mjs";
 import http from "node:http";
 import https from "node:https";
 import dns from "node:dns/promises";
@@ -23,6 +24,7 @@ const origins = new Set([
   "http://localhost:5173",
   ...(process.env.MYLAB_ALLOWED_ORIGINS || "").split(",").filter(Boolean),
 ]);
+let gpuUsername = "";
 let gpuBase = "",
   gpuToken = "";
 const timeout = () => AbortSignal.timeout(20000);
@@ -87,6 +89,7 @@ async function login(base, username, password) {
     throw Error("实验室未返回有效会话");
   gpuBase = target;
   gpuToken = a.token;
+  gpuUsername = username;
   return { connected: true };
 }
 async function gpuGet(path) {
@@ -300,6 +303,14 @@ const server = http.createServer(async (req, res) => {
       json(res, 200, await login(q.base, q.username, q.password));
       return;
     }
+    if(path==="/gpu/configs" && req.method==="POST"){const q=await body(req);json(res,200,await gpuConfigs(q.name));return;}
+    if(path==="/gpu/submit" && req.method==="POST"){const q=await body(req);json(res,200,await startGpuShell(q,{base:gpuBase,token:gpuToken,username:gpuUsername}));return;}
+    if(path==="/gpu/job" && req.method==="POST"){const q=await body(req);json(res,200,gpuJob(q.key,gpuUsername));return;}
+    if(path==="/gpu/metrics" && req.method==="POST"){
+      const q=await body(req), a=await gpuGet("/api/v1/agents");
+      const slot=Object.values(a.agents.find(x=>x.id===q.agent)?.slots||{}).find(s=>s.id===q.slot);
+      if(!slot)throw Error("该板卡已不在集群中");json(res,200,await gpuMetrics(slot.device?.uuid));return;
+    }
     if (path === "/gpu" && req.method === "GET") {
       const [a, p, m] = await Promise.all([
         gpuGet("/api/v1/agents"),
@@ -318,6 +329,7 @@ const server = http.createServer(async (req, res) => {
             .filter((s) => s.device?.type !== "TYPE_CPU")
             .map((s) => ({
               id: s.id,
+              uuid: s.device?.uuid,
               device: s.device?.brand || "未知 GPU",
               memory: null,
               enabled: s.enabled && !s.draining,

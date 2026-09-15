@@ -1,3 +1,4 @@
+import {GpuMetrics,LocalGpuApply} from "./GpuTools";
 import { useEffect, useState, useRef } from "react";
 import {
   Cpu,
@@ -256,7 +257,7 @@ export function GpuPage() {
       )}
       <Notice>
         “未分配”是调度器的分配状态，不代表 GPU
-        利用率或申请权限。当前接口未提供实时显存占用；实际申请与资源释放在原管理系统完成。
+        利用率或申请权限。当前接口未提供实时显存占用；可在下方通过本机提交申请；资源释放在原管理系统完成。
       </Notice>
       <div className="section-heading requests-heading">
         <h2>我的申请与使用记录</h2>
@@ -379,6 +380,7 @@ export function GpuPage() {
           </form>
         </Modal>
       )}
+      <LocalGpuApply />
       {card && (
         <Modal drawer title="GPU 详情" onClose={() => setCard(null)}>
           <div className="gpu-detail">
@@ -386,10 +388,11 @@ export function GpuPage() {
             {!selectedSlot ? <Notice tone="warning">该卡已不在当前资源快照中。</Notice> : <>
               <dl><dt>型号</dt><dd>{selectedSlot.device}</dd><dt>资源池</dt><dd>{selectedAgent?.resourcePool}</dd><dt>调度状态</dt><dd>{selectedSlot.state}</dd><dt>启用状态</dt><dd>{selectedAgent?.enabled && selectedSlot.enabled ? "启用" : "禁用"}</dd><dt>显存</dt><dd>{selectedSlot.memory === null ? "接口未提供" : `${selectedSlot.memory} GB`}</dd><dt>更新时间</dt><dd>{snapshot && new Date(snapshot.fetchedAt).toLocaleString("zh-CN")}</dd></dl>
               {error && <Notice tone="warning">连接异常，当前状态可能已过期。</Notice>}
+              <GpuMetrics agent={card.agent} slot={card.slot}/>
               <button className="primary" disabled={busy || !!error || !selectedAgent?.enabled || !selectedSlot.enabled || selectedSlot.allocated || !snapshot || Date.now()-Date.parse(snapshot.fetchedAt)>60000} onClick={() => {
                 setRequest({id:crypto.randomUUID(),title:`${selectedSlot.device} 实验申请`,count:1,memory:selectedSlot.memory || 24,start:"",hours:24,notes:`目标节点：${selectedAgent?.name}\nGPU：${selectedSlot.id}\n资源池：${selectedAgent?.resourcePool}`,status:"draft",createdAt:new Date().toISOString()});setCard(null);
               }}>使用这张卡填写申请</button>
-              <Notice>将自动填写目标卡信息。正式提交入口待集群文档确认，当前仅保存个人申请草稿。</Notice>
+              <Notice>将自动填写目标卡信息。此按钮填写草稿。正式申请请使用页面下方“通过本机申请资源”，按 YAML 资源池调度。</Notice>
               <ExternalLink local url={data.settings.gpuUrl.replace(/\/$/,"")+"/det/clusters"}>前往集群管理系统</ExternalLink>
             </>}
           </div>

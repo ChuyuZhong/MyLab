@@ -256,7 +256,7 @@ export function SettingsPage({
             <PlugZap size={20} />
             <div>
               <h2>数据连接</h2>
-              <p>配对码用于公众号链接正文读取、GPU 登录与状态查询。X、AI 情报、手动粘贴正文及模型调用均不需要本机服务。</p>
+              <p>配对码用于公众号链接正文读取、GPU 登录、状态查询及主动提交申请。X、AI 情报、手动粘贴正文及模型调用均不需要本机服务。</p>
             </div>
           </div>
           <div className="form-stack">
