@@ -196,6 +196,7 @@ export function ArticleEditor({
           }
           const a = {
             ...article,
+            importedAt: article.importedAt || (initial ? undefined : new Date().toISOString()),
             contentScope: article.content.trim()
               ? article.contentScope === "link"
                 ? ("excerpt" as const)

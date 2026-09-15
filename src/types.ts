@@ -72,6 +72,8 @@ export interface Article {
   url: string;
   publishedAt: string;
   indexedAt?: string;
+  importedAt?: string;
+  readAt?: string;
   author: string;
   read: boolean;
   saved: boolean;

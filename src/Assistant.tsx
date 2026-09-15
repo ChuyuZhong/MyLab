@@ -92,7 +92,7 @@ export function Assistant({
       const result = await callAI(
         data.settings,
         secrets.aiKey,
-        translation && scope ? [{role:"system",content:"翻译为中文。"},{role:"user",content:scope.content}] : [
+        translation && scope ? [{role:"system",content:data.settings.translationPrompt.trim() || "翻译为中文"},{role:"user",content:scope.content}] : [
           {
             role: "system",
             content:

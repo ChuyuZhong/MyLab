@@ -219,7 +219,9 @@ export function SettingsPage({
                 placeholder="sk-…"
               />
             </Field>
-            <p className="muted">X 翻译提示词：翻译为中文。</p>
+            <Field label="X 翻译提示词" hint="默认：翻译为中文。支持自定义，并随 JSON 配置导出、导入。留空时使用默认提示词。">
+              <textarea rows={3} maxLength={100000} value={data.settings.translationPrompt} onChange={e=>setData(d=>({...d,settings:{...d.settings,translationPrompt:e.target.value}}))} placeholder="翻译为中文"/>
+            </Field>
             <div className="button-group">
               <button
                 className="secondary"
@@ -254,7 +256,7 @@ export function SettingsPage({
             <PlugZap size={20} />
             <div>
               <h2>数据连接</h2>
-              <p>本机服务用于微信正文读取与实验室 GPU；X 默认直接连接 FxTwitter。</p>
+              <p>配对码用于公众号链接正文读取、GPU 登录与状态查询。X、AI 情报、手动粘贴正文及模型调用均不需要本机服务。</p>
             </div>
           </div>
           <div className="form-stack">
@@ -266,7 +268,7 @@ export function SettingsPage({
               />
             </Field>
             <Field
-              label="本机服务配对码"
+              label="本机服务配对码（公众号正文 / GPU）"
               hint="运行 npm run bridge 后在本机终端查看。配对码只保留在页面内存。"
             >
               <input

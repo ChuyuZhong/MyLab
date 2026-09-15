@@ -48,7 +48,7 @@ export function defaultData(): AppData {
       aiBase: "https://api.deepseek.com",
       aiModel: "deepseek-flash",
       translationPrompt:
-        "翻译为中文。",
+        "翻译为中文",
       bridgeUrl: "http://127.0.0.1:4318",
       gpuUrl: "",
       feedMode: "direct",

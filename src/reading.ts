@@ -32,7 +32,7 @@ export function completeReading(
   const updated = {
     ...data,
     articles: data.articles.map((a) =>
-      a.id === id ? { ...a, read: true, summary } : a,
+      a.id === id ? { ...a, read: true, readAt: a.readAt || new Date().toISOString(), summary } : a,
     ),
   };
   try {

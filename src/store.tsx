@@ -9,6 +9,7 @@ import {
   type SetStateAction,
 } from "react";
 import { defaultData, validateBackup } from "./core";
+import { cleanLegacyWechat } from "./wechat-archive";
 import type { AppData, Article, Page, Secrets, Task } from "./types";
 type Store = {
   data: AppData;
@@ -30,7 +31,7 @@ export function loadData() {
   try {
     const raw = localStorage.getItem(DATA_KEY);
     return {
-      data: raw ? validateBackup(JSON.parse(raw)) : defaultData(),
+      data: raw ? cleanLegacyWechat(validateBackup(JSON.parse(raw))) : defaultData(),
       error: "",
     };
   } catch {

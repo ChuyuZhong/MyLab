@@ -7,11 +7,13 @@ import { MarkdownView } from "./MarkdownView";
 import { ArticleEditor } from "./Feeds";
 import { queueReading } from "./weekly";
 import type { Article } from "./types";
+import { archiveGroups } from "./wechat-archive";
 
 export function WechatPage() {
   const { data, setData, secrets, notify, askAssistant, navigate, query } = useApp();
   const [url, setUrl] = useState("");
   const [selected, setSelected] = useState("");
+  const [archiveMode,setArchiveMode]=useState<"imported"|"read">("imported");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [edit, setEdit] = useState<Article | null | undefined>();
@@ -30,7 +32,7 @@ export function WechatPage() {
       setBusy(true); setError("");
       const r = await bridgeRequest(data.settings, secrets, "/article", { url: u.href }, controller.signal);
       if (!r.content?.trim()) throw Error("没有取得正文，请在原文完成验证后手动补充。");
-      const a: Article = { ...existing, id: existing?.id || crypto.randomUUID(), kind: "wechat", sourceId: "manual-wechat", title: r.title || "微信文章", author: r.author || "公众号", url: u.href, content: r.content, contentMarkdown: r.contentMarkdown, publishedAt: r.publishedAt || "", indexedAt: new Date().toISOString(), read: existing?.read || false, saved: existing?.saved || false, contentScope: "full", provenance: "文章链接 · 本机读取" };
+      const a: Article = { ...existing, id: existing?.id || crypto.randomUUID(), kind: "wechat", sourceId: "manual-wechat", title: r.title || "微信文章", author: r.author || "公众号", url: u.href, content: r.content, contentMarkdown: r.contentMarkdown, publishedAt: r.publishedAt || "", indexedAt: new Date().toISOString(), importedAt: existing?.importedAt || new Date().toISOString(), read: existing?.read || false, saved: existing?.saved || false, contentScope: "full", provenance: "文章链接 · 本机读取" };
       setData(d => ({ ...d, articles: [a, ...d.articles.filter(x => x.url !== a.url || x.kind !== "wechat")] }));
       setSelected(a.id);
     } catch (e) { if (!request.current?.signal.aborted) setError((e as Error).message); }
@@ -45,14 +47,14 @@ export function WechatPage() {
     </form>
     {error && <Notice tone="warning">{error}<button className="text-button" onClick={() => navigate("settings")}>连接设置</button></Notice>}
     <div className="guide-layout">
-      <aside className="surface guide-archive"><h3>阅读归档 · {articles.length}</h3>{!articles.length && <p className="muted">加载的文章保存在本机，可随时重读、备份。</p>}{articles.map(a => <button key={a.id} className={selected === a.id ? "selected" : ""} onClick={() => setSelected(a.id)}><small>{a.author} · {a.read ? "已读" : "待读"}</small><strong>{a.title}</strong></button>)}</aside>
+      <aside className="surface guide-archive"><h3>阅读归档 · {articles.length}</h3><div className="archive-tabs"><button aria-pressed={archiveMode==="imported"} onClick={()=>setArchiveMode("imported")}>按导入时间</button><button aria-pressed={archiveMode==="read"} onClick={()=>setArchiveMode("read")}>按阅读时间</button></div>{archiveGroups(articles,archiveMode).map(([date,items])=><section key={date}><h4>{date} · {items.length}</h4>{items.map(a=><button key={a.id} className={selected===a.id?"selected":""} onClick={()=>setSelected(a.id)}><small>{a.author} · {a.read?"已读":"待读"}</small><strong>{a.title}</strong></button>)}</section>)}{!archiveGroups(articles,archiveMode).length && <p className="muted">{archiveMode==="read"?"暂无已读文章，阅读后点击“标为已读”。":"粘贴链接或正文开始导入。"}</p>}</aside>
       <section className="reader-panel">
         {!active ? <div className="small-empty">粘贴链接加载文章，或选择一篇已归档的内容。</div> : <>
           <div className="reader-meta">{active.author} · {active.publishedAt ? new Date(active.publishedAt).toLocaleString("zh-CN", { year:"numeric", month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit" }) : "发布时间未提供"}</div>
           <h2>{active.title}</h2>
           <div className="reader-actions">
             <ExternalLink url={active.url}>原文</ExternalLink>
-            <button className="text-button" onClick={() => setData(d => ({...d,articles:d.articles.map(a => a.id === active.id ? {...a,read:!a.read} : a)}))}><CheckCheck size={16}/>{active.read ? "已读 · 已归档" : "标为已读"}</button>
+            <button className="text-button" onClick={() => setData(d => ({...d,articles:d.articles.map(a => a.id === active.id ? {...a,read:!a.read,readAt:a.read?undefined:new Date().toISOString()} : a)}))}><CheckCheck size={16}/>{active.read ? "已读 · 已归档" : "标为已读"}</button>
             <button className="text-button" disabled={!active.content} onClick={() => askAssistant("请辅助阅读这篇文章，概括方法并回答我的问题。",active)}><Sparkles size={16}/>AI 辅助阅读</button>
             <button className="text-button" disabled={!active.content} onClick={() => {try {setData(queueReading(data,active.id));notify("已加入本周周报");navigate("weekly");}catch(e){notify((e as Error).message);}}}><FilePlus2 size={16}/>加入周报</button>
             <button className="text-button" onClick={() => setEdit(active)}>补充正文</button>
