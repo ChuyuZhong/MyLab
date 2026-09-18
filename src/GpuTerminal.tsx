@@ -2,19 +2,24 @@ import {useEffect,useRef,useState} from 'react';
 import {Terminal} from '@xterm/xterm';
 import {FitAddon} from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
+import '@fontsource/cascadia-mono/latin-400.css';
+import '@fontsource/cascadia-mono/latin-700.css';
 import {useApp} from './store';
 import {bridgeRequest} from './api';
 import {Notice} from './ui';
 export function GpuTerminal({taskId}:{taskId:string}){
  const {data,secrets}=useApp();const host=useRef<HTMLDivElement>(null),[error,setError]=useState(''),[status,setStatus]=useState('正在连接任务终端…');
  useEffect(()=>{
-  const id=crypto.randomUUID(),term=new Terminal({cursorBlink:true,fontSize:13,scrollback:3000,theme:{background:'#172731',foreground:'#e4edef'}}),fit=new FitAddon();term.loadAddon(fit);term.open(host.current!);
+  const id=crypto.randomUUID(),term=new Terminal({cursorBlink:true,fontFamily:'Consolas, monospace',fontSize:16,lineHeight:1.2,fontWeight:400,fontWeightBold:700,scrollback:3000,theme:{background:'#172731',foreground:'#e4edef'}}),fit=new FitAddon();term.loadAddon(fit);term.open(host.current!);
   let alive=true,opened=false,seq=0,confirmed=0,cursor=0,ws:WebSocket|undefined,retries=0,inputFailed=false,failed=false;
   let retryTimer:ReturnType<typeof setTimeout>|undefined,resizeTimer:ReturnType<typeof setTimeout>|undefined;
   const api=(action:string,body:object={})=>bridgeRequest(data.settings,secrets,'/gpu/terminal/'+action,{id,...body});
   const send=(msg:object)=>{if(ws?.readyState===WebSocket.OPEN)ws.send(JSON.stringify(msg));};
   function fitTerminal(){if(!host.current?.offsetWidth||!host.current?.offsetHeight)return;fit.fit();if(opened)send({type:'resize',cols:Math.max(10,term.cols),rows:Math.max(2,term.rows)});}
   fitTerminal();
+  void Promise.all([document.fonts.load('16px "Cascadia Mono"'),document.fonts.load('700 16px "Cascadia Mono"')]).then(()=>{
+   if(!alive)return;term.options.fontFamily='"Cascadia Mono", "Cascadia Code", Consolas, "Microsoft YaHei", monospace';fitTerminal();term.refresh(0,term.rows-1);
+  }).catch(()=>{});
   const sub=term.onData(text=>{
    if(!opened||inputFailed||!alive)return;
    if((ws?.bufferedAmount||0)>65536){inputFailed=true;setError('输入积压，已停止发送新输入。请核对终端后重新连接。');return;}

@@ -2,6 +2,8 @@ import * as pty from 'node-pty';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
 const sessions=new Map(),opening=new Map();
+// On Windows node-pty's name does not populate TERM for the SSH child.
+export function terminalEnvironment(env){return {...env,TERM:'xterm-256color',COLORTERM:'truecolor'};}
 const owner=s=>createHash('sha256').update(s.base+'\n'+s.username+'\n'+s.token).digest('hex');
 export function terminalId(id){if(typeof id!=='string'||! /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(id))throw Error('终端或任务 ID 无效');return id;}
 export function terminalSize(cols,rows){if(!Number.isInteger(cols)||!Number.isInteger(rows)||cols<10||cols>400||rows<2||rows>150)throw Error('终端尺寸无效');return {cols,rows};}
@@ -15,7 +17,7 @@ export async function openTerminal(q,s,getShell){
   const shell=await getShell(q.taskId);if(shell?.state!=='STATE_RUNNING')throw Error('任务尚未运行或已经结束');
   const python=process.env.MYLAB_GPU_PYTHON||path.join(path.dirname(path.dirname(process.env.MYLAB_DET_EXE||'')),'python.exe');
   const root=path.dirname(python);
-  const proc=pty.spawn(python,['-m','determined.cli','-m',s.base,'-u',s.username,'shell','open','--show-ssh-command',q.taskId],{name:'xterm-256color',cols:q.cols,rows:q.rows,cwd:process.cwd(),useConpty:true,env:{...process.env,DET_MASTER:s.base,DET_USER:s.username,DET_USER_TOKEN:s.token,PYTHONIOENCODING:'utf-8',PATH:[root,path.join(root,'Scripts'),path.join(root,'Library','bin'),process.env.PATH].join(path.delimiter)}});
+  const proc=pty.spawn(python,['-m','determined.cli','-m',s.base,'-u',s.username,'shell','open','--show-ssh-command',q.taskId],{name:'xterm-256color',cols:q.cols,rows:q.rows,cwd:process.cwd(),useConpty:true,env:{...terminalEnvironment(process.env),DET_MASTER:s.base,DET_USER:s.username,DET_USER_TOKEN:s.token,PYTHONIOENCODING:'utf-8',PATH:[root,path.join(root,'Scripts'),path.join(root,'Library','bin'),process.env.PATH].join(path.delimiter)}});
   const t={proc,owner:owner(s),taskId:q.taskId,text:'',offset:0,seq:0,closed:false,listeners:new Set(),touched:Date.now()};sessions.set(q.id,t);
   proc.onData(chunk=>{t.text+=chunk;if(t.text.length>262144){const n=t.text.length-262144;t.text=t.text.slice(n);t.offset+=n;}for(const notify of t.listeners)notify();});
   proc.onExit(()=>{t.closed=true;for(const notify of t.listeners)notify();});return {id:q.id};

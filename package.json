@@ -11,6 +11,7 @@
     "bridge": "node --env-file-if-exists=.env.local scripts/bridge.mjs"
   },
   "dependencies": {
+    "@fontsource/cascadia-mono": "^5.3.0",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
     "cheerio": "^1.2.0",
