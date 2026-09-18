@@ -280,7 +280,7 @@ pre.yaml {
 <style>
 html[data-theme="light"]{--bg:#f6f8fa;--panel:#fff;--panel2:#f1f6f5;--border:#dfe8e7;--text:#263f49;--muted:#73838b;--accent:#318896;--accent-dim:#e3f1f1;--green:#378664;--red:#b95e64;--purple:#687da2;--shadow:0 12px 36px #243f4912}
 html[data-theme="dark"]{--bg:#17252d;--panel:#20313b;--panel2:#263b45;--border:#344a54;--text:#e4eeee;--muted:#a2b4bc;--accent:#80bdc5;--accent-dim:#294b53;--red:#eea0a5;--green:#8cc6a7}
-#topbar{border-radius:18px 18px 0 0;padding:14px 18px}.card{border-radius:16px}main{padding:16px}.sec{font-size:16px}.slot.free{background:#e2f3e9!important;border-color:#abd6bc!important;color:#337350!important}.slot.busy{background:#fbe5e6!important;border-color:#e7b5b8!important;color:#a34d56!important}.slot.busy.mine{background:#f6d5d9!important;outline:2px solid var(--accent);outline-offset:2px}.slot.disabled{background:var(--panel2)!important;opacity:.5}.slot{border-radius:7px!important}.sw.free{background:#e2f3e9}.sw.other,.sw.me{background:#fbe5e6}.sw.me{outline:2px solid var(--accent)}
+#topbar{border-radius:18px 18px 0 0;padding:14px 18px}.card{border-radius:16px}main{padding:16px}.sec{font-size:16px}.slot.free{background:#e2f3e9!important;border-color:#abd6bc!important;color:#337350!important}.slot.busy{background:#fbe5e6!important;border-color:#e7b5b8!important;color:#a34d56!important}.slot.busy.mine{background:#f6d5d9!important;outline:2px solid var(--accent);outline-offset:2px}.slot.disabled{background:var(--panel2)!important;opacity:.5}.slot{border-radius:7px!important}.legend .sw.free{background:#e2f3e9}.legend .sw.other,.legend .sw.me{background:#fbe5e6}.legend .sw.me{outline:2px solid var(--accent)}
 html[data-theme="dark"] .slot.free{background:#264b3c!important;color:#a1d6b6!important}html[data-theme="dark"] .slot.busy{background:#593940!important;color:#f2bdc3!important}
 #drawer{width:min(980px,94vw)}.btn{border-radius:9px}.agent .slots{gap:9px}.tasks td{padding-top:12px;padding-bottom:12px}.tasks tbody tr:hover{background:var(--accent-dim)}
 @media(max-width:650px){.tasks{min-width:600px}main>.card{overflow:auto}#topbar .meta{gap:8px}.chart-grid{grid-template-columns:1fr}#drawer{width:100vw}}
@@ -554,6 +554,7 @@ async function loadOverview(manual) {
     state.failStreak++;
     setConn(false, "连接失败: " + err.message);
     if (manual || state.failStreak <= 2) showError(err.message);
+    if(!state.overview)$("#agents").innerHTML = `<div class="card muted">等待连接实验室后显示节点与资源。</div>`;
   }
 }
 
