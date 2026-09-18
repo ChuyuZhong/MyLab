@@ -45,13 +45,13 @@ def dispatch(q):
         tasks, warnings = {}, []
         for kind in ('command', 'shell', 'experiment'):
             try:
-                tasks[kind] = [t for t in view._list_tasks(sess, kind, 'mine') if t.get('user') == user]
+                tasks[kind] = view._list_tasks(sess, kind, 'all')
             except Exception:
                 tasks[kind] = []
                 warnings.append(kind + ' 列表读取失败')
         agents = view._agents_with_slots(sess)
-        mine = {t['id'] for kind in ('command', 'shell') for t in tasks[kind]}
-        mine.update(t.get('jobId') for t in tasks['experiment'] if t.get('jobId'))
+        mine = {t['id'] for kind in ('command', 'shell') for t in tasks[kind] if t.get('user') == user}
+        mine.update(t.get('jobId') for t in tasks['experiment'] if t.get('jobId') and t.get('user') == user)
         for a in agents:
             for slot in a['slots']:
                 slot['mine'] = slot.get('taskId') in mine
@@ -63,8 +63,6 @@ def dispatch(q):
         raise ValueError('不支持此看板接口')
     kind, task_id, action = match.groups()
     detail = view._task_detail(sess, kind, task_id)
-    if detail.get('user') != user:
-        raise PermissionError('仅允许查看或操作当前账号的任务')
     if action == 'kill' and method == 'POST':
         return view.kill_task(kind, task_id, str(q.get('body', {}).get('confirm', '')))
     if method != 'GET':

@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {Script} from 'node:vm';
 import {validateDashboardRequest,dashboardRequest} from '../scripts/gpu-dashboard.mjs';
 test('dashboard gateway only permits known routes and explicit task-ID kill confirmation',()=>{
  assert.equal(validateDashboardRequest({path:'/api/overview'}).method,'GET');
@@ -12,9 +11,7 @@ test('dashboard gateway only permits known routes and explicit task-ID kill conf
 test('dashboard refuses execution without authenticated bridge session',async()=>{
  await assert.rejects(dashboardRequest({path:'/api/overview'},{}),/登录/);
 });
-test('static dashboard scripts parse and transport does not contain credentials',()=>{
- const html=readFileSync('public/gpu-dashboard.html','utf8');
- for(const match of html.matchAll(/<script>([\s\S]*?)<\/script>/g))new Script(match[1]);
- assert.ok(html.includes('e.source!==parent || e.origin!==location.origin'));
- assert.ok(!html.includes('Bearer '));assert.ok(!html.includes('fetch(path'));
+test('GPU dashboard is native and shares MyLab drawer',()=>{
+ const page=readFileSync('src/Gpu.tsx','utf8'),native=readFileSync('src/GpuNative.tsx','utf8');
+ assert.ok(!page.includes('<iframe'));assert.ok(native.includes('<Modal drawer'));
 });

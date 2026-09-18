@@ -43,7 +43,7 @@ export async function submit(q,session,getAgents){
  }catch(e){locks.delete(session.username);throw e;}
  finally{if(![...jobs.values()].some(j=>j.owner===session.username&&j.status==='running'))locks.delete(session.username);}
 }
-export async function killTask(id,session,getShell){validKey(id);assertOwner(await getShell(id),session.username);try{await run(session,['shell','kill',id]);}catch{throw Error('释放命令未确认成功，请刷新任务状态后核对');}return {message:'已发送释放命令，等待集群确认结束'};}
+export async function killTask(id,session,getShell){validKey(id);await getShell(id);try{await run(session,['shell','kill',id]);}catch{throw Error('释放命令未确认成功，请刷新任务状态后核对');}return {message:'已发送释放命令，等待集群确认结束'};}
 export function parseMonitor(html){
  const $=load(html),headers=$('th').map((i,e)=>$(e).text().trim()).get();
  const parse=v=>{try{const a=JSON.parse(v);return Array.isArray(a)?a.slice(1).filter(Array.isArray).map(g=>g.map(v=>typeof v==='number'&&Number.isFinite(v)&&v>=0?v:null)):[];}catch{return [];}};

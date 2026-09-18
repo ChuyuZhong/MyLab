@@ -11,9 +11,12 @@
     "bridge": "node --env-file-if-exists=.env.local scripts/bridge.mjs"
   },
   "dependencies": {
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
     "cheerio": "^1.2.0",
     "ical.js": "^2.2.1",
     "lucide-react": "^1.45.0",
+    "node-pty": "^1.1.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-markdown": "^10.1.0",

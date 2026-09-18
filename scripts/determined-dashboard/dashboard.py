@@ -618,7 +618,7 @@ def shell_metrics(task_id: str) -> dict:
 # Read-only tmux view (interactive shells)
 # ---------------------------------------------------------------------------
 
-TMUX_PANES_FORMAT = "\t".join(
+TMUX_PANES_FORMAT = "|MYLAB|".join(
     [
         "#{session_id}",
         "#{session_name}",
@@ -705,7 +705,7 @@ def tmux_snapshot(task_id: str, params: dict) -> dict:
     sessions = {}
     windows = {}
     for line in raw.splitlines():
-        fields = line.split("\t", 15)
+        fields = line.split("|MYLAB|", 15)
         if len(fields) != 16:
             continue
         (
