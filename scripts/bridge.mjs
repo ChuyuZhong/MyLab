@@ -1,3 +1,4 @@
+import {dashboardRequest} from './gpu-dashboard.mjs';
 import {templates,poolAvailability,submit,readJob,killTask,assertOwner,safeTask,taskMonitor} from './gpu-control.mjs';
 import http from "node:http";
 import https from "node:https";
@@ -303,6 +304,7 @@ const server = http.createServer(async (req, res) => {
       json(res, 200, await login(q.base, q.username, q.password));
       return;
     }
+    if(path==="/gpu/dashboard" && req.method==="POST"){const q=await body(req);json(res,200,await dashboardRequest(q,{base:gpuBase,token:gpuToken,username:gpuUsername}));return;}
     if(path==="/gpu/options" && req.method==="GET"){
       const a=await gpuGet('/api/v1/agents');json(res,200,{pools:Object.entries(templates).map(([pool,file])=>({pool,file,available:poolAvailability(a.agents||[],pool)}))});return;
     }

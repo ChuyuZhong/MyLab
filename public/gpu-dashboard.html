@@ -1,0 +1,1347 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>算力工作台</title>
+<style>
+:root {
+  --bg: #0f141a; --panel: #161d26; --panel2: #1b2430; --border: #232c38;
+  --text: #e6edf3; --muted: #8b98a5; --accent: #4cc2ff; --accent-dim: #1c3a4d;
+  --green: #3fb96f; --amber: #d9a53a; --red: #e5534b; --blue: #539bf5; --purple: #b58cf6;
+  --shadow: 0 8px 28px rgba(0,0,0,.45);
+  --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+}
+html[data-theme="light"] {
+  --bg: #f4f6f9; --panel: #ffffff; --panel2: #eef2f6; --border: #dde4ec;
+  --text: #17222e; --muted: #5d6b7a; --accent: #0b74c4; --accent-dim: #dbeefb;
+  --purple: #7c4dcc;
+  --shadow: 0 8px 24px rgba(30,50,70,.12);
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.5 -apple-system, "PingFang SC", "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+}
+button { font: inherit; cursor: pointer; }
+a { color: var(--accent); }
+
+/* ---------- top bar ---------- */
+#topbar {
+  position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 14px;
+  padding: 10px 20px; background: var(--panel); border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+#topbar .title { font-size: 15px; font-weight: 700; white-space: nowrap; }
+#topbar .meta {
+  color: var(--muted); font-size: 12.5px; display: flex; align-items: center;
+  gap: 14px; flex-wrap: wrap;
+}
+#topbar .meta b { color: var(--text); font-weight: 600; }
+#topbar .meta a { color: var(--text); font-weight: 600; text-decoration: none; }
+#topbar .meta a[href]:hover { color: var(--accent); text-decoration: underline; }
+#topbar .meta a[aria-disabled="true"] { cursor: default; }
+#topbar .spacer { flex: 1; }
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; background: var(--muted); }
+.dot.ok { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.dot.bad { background: var(--red); box-shadow: 0 0 6px var(--red); }
+select, input[type="text"] {
+  background: var(--panel2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 7px; padding: 5px 8px; font: inherit;
+}
+.btn {
+  background: var(--panel2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 7px; padding: 5px 12px; transition: filter .15s;
+}
+.btn:hover { filter: brightness(1.15); }
+.btn.primary { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+.btn.danger { background: transparent; border-color: var(--red); color: var(--red); }
+.btn.danger:hover { background: var(--red); color: #fff; }
+.btn.small { padding: 2px 8px; font-size: 12px; border-radius: 6px; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ---------- error banner ---------- */
+#errorbar {
+  display: none; margin: 10px 20px 0; padding: 9px 14px; border-radius: 9px;
+  background: color-mix(in srgb, var(--red) 14%, transparent);
+  border: 1px solid var(--red); color: var(--text); font-size: 13px;
+}
+#errorbar.show { display: block; }
+
+/* ---------- layout ---------- */
+main { max-width: 1320px; margin: 0 auto; padding: 16px 20px 80px; }
+h2.sec {
+  font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase;
+  letter-spacing: .08em; margin: 22px 2px 10px; display: flex; align-items: center; gap: 8px;
+}
+h2.sec .hint { font-weight: 400; text-transform: none; letter-spacing: 0; font-size: 12px; }
+.grid { display: grid; gap: 12px; }
+.grid.pools { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
+.grid.agents { grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); }
+
+.card {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;
+}
+.card h3 { margin: 0 0 6px; font-size: 14.5px; display: flex; align-items: center; gap: 8px; }
+.card .sub { color: var(--muted); font-size: 12.5px; margin-bottom: 10px; min-height: 1em; }
+.card.agent h3 { font-family: var(--mono); font-size: 13px; }
+.card.agent.off { opacity: .55; }
+
+.bar { height: 8px; border-radius: 5px; background: var(--panel2); overflow: hidden; margin: 8px 0 6px; }
+.bar > i { display: block; height: 100%; border-radius: 5px; background: var(--green); transition: width .5s; }
+.bar > i.warn { background: var(--amber); }
+.bar > i.full { background: var(--red); }
+.statrow { display: flex; gap: 14px; color: var(--muted); font-size: 12.5px; flex-wrap: wrap; }
+.statrow b { color: var(--text); font-variant-numeric: tabular-nums; }
+
+.slots { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.slot {
+  width: 34px; height: 30px; border-radius: 7px; border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--green) 22%, transparent); color: var(--green);
+  display: flex; align-items: center; justify-content: center; font-size: 11.5px;
+  font-family: var(--mono); cursor: default; position: relative;
+}
+.slot.busy {
+  background: color-mix(in srgb, var(--blue) 24%, transparent); color: var(--blue);
+  cursor: pointer; border-color: color-mix(in srgb, var(--blue) 55%, transparent);
+}
+.slot.busy:hover { filter: brightness(1.3); }
+.slot.busy.mine {
+  background: color-mix(in srgb, var(--purple) 28%, transparent); color: var(--purple);
+  border-color: color-mix(in srgb, var(--purple) 60%, transparent);
+}
+.legend {
+  display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px;
+  margin-top: 10px;
+}
+.legend .sw {
+  width: 14px; height: 14px; border-radius: 4px; display: inline-block;
+  border: 1px solid var(--border); margin-left: 10px;
+}
+.legend .sw:first-child { margin-left: 0; }
+.legend .sw.free { background: color-mix(in srgb, var(--green) 30%, transparent); }
+.legend .sw.other { background: color-mix(in srgb, var(--blue) 32%, transparent); }
+.legend .sw.me { background: color-mix(in srgb, var(--purple) 36%, transparent); }
+.slot .tip {
+  display: none; position: absolute; bottom: 36px; left: 50%; transform: translateX(-50%);
+  background: var(--panel2); border: 1px solid var(--border); color: var(--text);
+  padding: 6px 10px; border-radius: 8px; white-space: nowrap; font-family: inherit;
+  font-size: 12px; box-shadow: var(--shadow); z-index: 5; text-align: left;
+}
+.slot:hover .tip { display: block; }
+
+/* ---------- task table ---------- */
+.tabs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+.tab {
+  border: 1px solid var(--border); background: var(--panel); color: var(--muted);
+  border-radius: 999px; padding: 4px 14px; font-size: 13px;
+}
+.tab.active { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); }
+table.tasks { width: 100%; border-collapse: collapse; }
+table.tasks th {
+  text-align: left; color: var(--muted); font-size: 12px; font-weight: 600;
+  padding: 7px 10px; border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+table.tasks td { padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 13px; }
+table.tasks tbody tr { cursor: pointer; }
+table.tasks tbody tr:hover { background: var(--panel2); }
+td.mono, .mono { font-family: var(--mono); font-size: 12.5px; }
+.empty { color: var(--muted); text-align: center; padding: 26px 0 !important; }
+
+.badge {
+  display: inline-block; padding: 1.5px 9px; border-radius: 999px; font-size: 11.5px;
+  font-weight: 600; letter-spacing: .02em; white-space: nowrap;
+}
+.badge.run { background: color-mix(in srgb, var(--green) 18%, transparent); color: var(--green); }
+.badge.wait { background: color-mix(in srgb, var(--amber) 18%, transparent); color: var(--amber); }
+.badge.info { background: color-mix(in srgb, var(--blue) 18%, transparent); color: var(--blue); }
+.badge.err { background: color-mix(in srgb, var(--red) 18%, transparent); color: var(--red); }
+.badge.done { background: color-mix(in srgb, var(--muted) 20%, transparent); color: var(--muted); }
+
+/* ---------- drawer ---------- */
+#overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 40;
+}
+#overlay.show { display: block; }
+#drawer {
+  position: fixed; top: 0; right: 0; height: 100%; width: min(760px, 94vw); z-index: 50;
+  background: var(--panel); border-left: 1px solid var(--border); box-shadow: var(--shadow);
+  transform: translateX(102%); transition: transform .22s ease; display: flex; flex-direction: column;
+}
+#drawer.show { transform: translateX(0); }
+#drawer .head {
+  padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex;
+  align-items: flex-start; gap: 10px;
+}
+#drawer .head .titles { flex: 1; min-width: 0; }
+#drawer .head .desc { font-size: 15.5px; font-weight: 700; word-break: break-all; }
+#drawer .head .idrow { color: var(--muted); font-size: 12.5px; margin-top: 3px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+#drawer .body { flex: 1; overflow-y: auto; padding: 14px 18px 30px; }
+.facts {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 8px 16px; margin: 12px 0;
+}
+.fact { min-width: 0; }
+.fact .k { color: var(--muted); font-size: 11.5px; }
+.fact .v { font-size: 13px; word-break: break-all; }
+.fact .v.mono { font-size: 12px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.chip {
+  background: var(--panel2); border: 1px solid var(--border); border-radius: 7px;
+  padding: 2px 9px; font-size: 12px; font-family: var(--mono);
+}
+.chip small { color: var(--muted); }
+details.block { border: 1px solid var(--border); border-radius: 10px; margin: 10px 0; background: var(--panel2); }
+details.block summary { cursor: pointer; padding: 8px 12px; font-size: 13px; font-weight: 600; color: var(--muted); }
+details.block[open] summary { border-bottom: 1px solid var(--border); color: var(--text); }
+details.block .inner { padding: 10px 12px; }
+pre.yaml {
+  margin: 0; font-family: var(--mono); font-size: 12px; white-space: pre-wrap;
+  word-break: break-all; max-height: 340px; overflow: auto;
+}
+#d-tmux { border-bottom: 1px solid var(--border); background: var(--panel2); }
+#d-tmux .tmux-inlinebar { display: flex; align-items: center; gap: 8px; padding: 7px 10px; flex-wrap: wrap; }
+#d-tmux .tmux-label { font-size: 12.5px; font-weight: 700; color: var(--text); white-space: nowrap; }
+#d-tmux .tmux-grow { flex: 1; }
+#tmux-pane-select { min-width: 260px; max-width: min(620px, 58vw); padding: 4px 7px; }
+#d-tmuxbody { padding: 0 10px 8px; }
+.tmux-hint { color: var(--muted); font-size: 12px; }
+#tmux-content {
+  margin: 5px 0 0; min-height: 54px; max-height: 190px; overflow: auto; padding: 7px 9px;
+  background: color-mix(in srgb, var(--bg) 55%, var(--panel)); border: 1px solid var(--border);
+  border-radius: 6px; font-family: var(--mono); font-size: 11.5px; line-height: 1.4;
+  white-space: pre; tab-size: 4;
+}
+.actions { display: flex; gap: 8px; margin: 14px 0 4px; flex-wrap: wrap; }
+
+/* ---------- logs ---------- */
+#logpanel { border: 1px solid var(--border); border-radius: 12px; margin-top: 14px; overflow: hidden; }
+#logpanel .bar2 {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+  background: var(--panel2); border-bottom: 1px solid var(--border); flex-wrap: wrap;
+}
+#logpanel .bar2 .label { font-size: 12.5px; font-weight: 700; }
+#logpanel .nz { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; user-select: none; }
+#logpanel .nz:hover { color: var(--text); }
+#logpanel .bar2 .grow { flex: 1; }
+#logview {
+  margin: 0; padding: 10px 12px; font-family: var(--mono); font-size: 12px; line-height: 1.55;
+  overflow: auto; height: 260px; white-space: pre-wrap; word-break: break-all;
+  background: color-mix(in srgb, var(--bg) 55%, var(--panel));
+}
+#logview .ln { display: block; }
+#logview .ts { color: var(--muted); }
+#logview .src { color: var(--accent); }
+#logview .src.stderr { color: var(--red); }
+#logview .msgerr { color: var(--red); }
+#logview .hidden { display: none; }
+
+/* ---------- in-container environment ---------- */
+#metrics-panel { margin-top: 14px; }
+.chip.big { font-size: 13px; padding: 5px 12px; }
+.chip.big b { color: var(--accent); font-variant-numeric: tabular-nums; }
+.chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 10px; }
+.chart-card { background: var(--panel2); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px 4px; }
+.chart-card h4 { margin: 0 0 2px; font-size: 12px; color: var(--muted); font-weight: 600; }
+.chart-card canvas { width: 100%; height: 140px; display: block; }
+.legend-mini { display: flex; gap: 10px; flex-wrap: wrap; margin: 1px 0 3px; }
+.legend-mini .lg { font-size: 11px; color: var(--muted); display: inline-flex; align-items: center; gap: 4px; }
+.legend-mini .lg i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+
+/* ---------- modal & toast ---------- */
+#modal { display: none; position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.5); align-items: center; justify-content: center; }
+#modal.show { display: flex; }
+#modal .box {
+  width: min(480px, 92vw); background: var(--panel); border: 1px solid var(--red);
+  border-radius: 14px; padding: 20px 22px; box-shadow: var(--shadow);
+}
+#modal h3 { margin: 0 0 8px; color: var(--red); font-size: 15px; }
+#modal p { color: var(--muted); font-size: 13px; margin: 6px 0; }
+#modal p b { color: var(--text); font-family: var(--mono); }
+#modal input { width: 100%; margin: 10px 0 14px; font-family: var(--mono); }
+#modal .row { display: flex; gap: 10px; justify-content: flex-end; }
+#toasts { position: fixed; right: 18px; bottom: 18px; z-index: 70; display: flex; flex-direction: column; gap: 8px; }
+.toast {
+  background: var(--panel2); border: 1px solid var(--border); border-left: 3px solid var(--accent);
+  padding: 9px 14px; border-radius: 9px; font-size: 13px; box-shadow: var(--shadow); max-width: 380px;
+}
+.toast.err { border-left-color: var(--red); }
+.toast.ok { border-left-color: var(--green); }
+.spin {
+  display: inline-block; width: 12px; height: 12px; border-radius: 50%;
+  border: 2px solid var(--accent); border-top-color: transparent; animation: r 0.8s linear infinite;
+  vertical-align: -2px; margin-right: 6px;
+}
+@keyframes r { to { transform: rotate(360deg); } }
+.muted { color: var(--muted); }
+.copybtn { border: none; background: none; color: var(--accent); padding: 0 2px; font-size: 12px; }
+.copybtn:hover { text-decoration: underline; }
+</style>
+<style>
+html[data-theme="light"]{--bg:#f6f8fa;--panel:#fff;--panel2:#f1f6f5;--border:#dfe8e7;--text:#263f49;--muted:#73838b;--accent:#318896;--accent-dim:#e3f1f1;--green:#378664;--red:#b95e64;--purple:#687da2;--shadow:0 12px 36px #243f4912}
+html[data-theme="dark"]{--bg:#17252d;--panel:#20313b;--panel2:#263b45;--border:#344a54;--text:#e4eeee;--muted:#a2b4bc;--accent:#80bdc5;--accent-dim:#294b53;--red:#eea0a5;--green:#8cc6a7}
+#topbar{border-radius:18px 18px 0 0;padding:14px 18px}.card{border-radius:16px}main{padding:16px}.sec{font-size:16px}.slot.free{background:#e2f3e9!important;border-color:#abd6bc!important;color:#337350!important}.slot.busy{background:#fbe5e6!important;border-color:#e7b5b8!important;color:#a34d56!important}.slot.busy.mine{background:#f6d5d9!important;outline:2px solid var(--accent);outline-offset:2px}.slot.disabled{background:var(--panel2)!important;opacity:.5}.slot{border-radius:7px!important}.sw.free{background:#e2f3e9}.sw.other,.sw.me{background:#fbe5e6}.sw.me{outline:2px solid var(--accent)}
+html[data-theme="dark"] .slot.free{background:#264b3c!important;color:#a1d6b6!important}html[data-theme="dark"] .slot.busy{background:#593940!important;color:#f2bdc3!important}
+#drawer{width:min(980px,94vw)}.btn{border-radius:9px}.agent .slots{gap:9px}.tasks td{padding-top:12px;padding-bottom:12px}.tasks tbody tr:hover{background:var(--accent-dim)}
+@media(max-width:650px){.tasks{min-width:600px}main>.card{overflow:auto}#topbar .meta{gap:8px}.chart-grid{grid-template-columns:1fr}#drawer{width:100vw}}
+</style></head>
+<body>
+
+<header id="topbar">
+  <span class="title">算力工作台</span>
+  <span class="meta">
+    <span>集群 <b id="m-cluster">—</b></span>
+    <span>Master <a id="m-master" class="mono" aria-disabled="true" title="打开 Master">—</a></span>
+    <span>用户 <b id="m-user">—</b></span>
+    <span>版本 <b id="m-version" class="mono">—</b></span>
+  </span>
+  <span class="spacer"></span>
+  <span class="meta">
+    <span class="dot" id="conn" title="连接状态"></span>
+    <span id="updated" class="muted">未加载</span>
+    <select id="interval" title="自动刷新间隔">
+      <option value="5">5s 刷新</option>
+      <option value="10">10s 刷新</option>
+      <option value="30">30s 刷新</option>
+      <option value="0">暂停</option>
+    </select>
+    <button class="btn" id="refresh" title="立即刷新">刷新</button>
+    <button class="btn" id="theme" title="切换明暗主题">◐</button>
+  </span>
+</header>
+
+<div id="errorbar"></div>
+
+<main>
+  <h2 class="sec">节点与 GPU 槽位 <span class="hint">点击资源池标签可筛选 · 点击被占用的槽位可查看对应任务</span></h2>
+  <div class="tabs" id="poolbar"></div><div style="display:flex;gap:8px;margin:12px 0"><button class="btn primary" data-apply="s3-4090">申请 4090</button><button class="btn primary" data-apply="d2-a800">申请 A800</button></div>
+  <div class="grid agents" id="agents"><div class="card"><span class="spin"></span>加载中…</div></div>
+  <div class="legend">
+    <span class="sw free"></span>空闲
+    <span class="sw other"></span>他人占用
+    <span class="sw me"></span>我的占用
+  </div>
+
+  <h2 class="sec">我的任务 <span class="hint">点击任意行查看详情与日志</span></h2>
+  <div class="card" style="padding:6px 10px 2px">
+    <div class="tabs" id="tabs"></div>
+    <table class="tasks" id="tasktable">
+      <thead><tr>
+        <th style="width:96px">状态</th><th>描述</th><th style="width:120px">ID</th>
+        <th style="width:110px">开始</th><th style="width:90px">时长</th>
+        <th style="width:90px">资源池</th><th style="width:70px"></th>
+      </tr></thead>
+      <tbody id="taskrows"></tbody>
+    </table>
+  </div>
+</main>
+
+<div id="overlay"></div>
+<aside id="drawer" aria-label="任务详情">
+  <div class="head">
+    <div class="titles">
+      <div class="desc" id="d-desc">—</div>
+      <div class="idrow" id="d-idrow"></div>
+    </div>
+    <button class="btn" id="d-close" title="关闭 (Esc)">✕</button>
+  </div>
+  <div class="body">
+    <div id="d-facts" class="facts"></div>
+    <div id="d-shell" style="display:none">
+      <details class="block" open><summary>Shell 连接信息</summary><div class="inner" id="d-shellbody"></div></details>
+    </div>
+    <div id="d-config"></div>
+    <div class="actions" id="d-actions"></div>
+    <div id="metrics-panel" style="display:none">
+      <h2 class="sec" style="margin-top:6px">实时状态 <span class="hint">容器内每 3 秒自动采样</span></h2>
+      <div class="chips" id="metric-chips"><span class="chip big muted"><span class="spin"></span>连接容器…</span></div>
+      <div class="chart-grid" id="chart-grid">
+        <div class="chart-card"><h4>GPU 利用率 %</h4><div class="legend-mini" id="legend-util"></div><canvas id="chart-util"></canvas></div>
+        <div class="chart-card"><h4>显存 GiB</h4><div class="legend-mini" id="legend-vram"></div><canvas id="chart-vram"></canvas></div>
+        <div class="chart-card"><h4>内存 GiB</h4><div class="legend-mini" id="legend-ram"></div><canvas id="chart-ram"></canvas></div>
+      </div>
+    </div>
+    <div id="logpanel">
+      <div id="d-tmux" style="display:none">
+        <div class="tmux-inlinebar">
+          <span class="tmux-label">tmux 终端（只读）</span>
+          <span id="tmux-status" class="tmux-hint">加载中…</span>
+          <span class="tmux-grow"></span>
+          <select id="tmux-pane-select" title="选择 Session / Window / Pane" aria-label="选择 tmux Pane"></select>
+          <button class="btn small primary" id="tmux-follow" title="滚动到选中 Pane 的最新输出">跟随最新</button>
+          <button class="btn small" id="tmux-refresh" title="刷新 tmux 列表">刷新</button>
+        </div>
+        <div id="d-tmuxbody"></div>
+      </div>
+      <div class="bar2">
+        <span class="label">日志</span>
+        <span id="log-count" class="muted" style="font-size:12px"></span>
+        <span class="grow"></span>
+        <label class="nz" title="隐藏 sshd / 调度等无关消息"><input type="checkbox" id="log-noise" checked> 隐藏 SSH 噪声</label>
+        <input type="text" id="log-filter" placeholder="过滤关键字…" style="width:150px">
+        <select id="log-tail" title="加载条数">
+          <option value="200">尾 200 行</option>
+          <option value="500" selected>尾 500 行</option>
+          <option value="1500">尾 1500 行</option>
+        </select>
+        <button class="btn small" id="log-reload">重新加载</button>
+        <button class="btn small" id="log-follow">▶ 跟随</button>
+      </div>
+      <pre id="logview"><span class="muted">点击「重新加载」或开启「跟随」查看日志。</span></pre>
+    </div>
+  </div>
+</aside>
+
+<div id="modal">
+  <div class="box">
+    <h3>⚠ 终止任务</h3>
+    <p>此操作会立即终止集群上的任务，且不可撤销。</p>
+    <p>任务：<b id="kill-target">—</b></p>
+    <p>请输入完整的任务 ID 以确认：</p>
+    <input type="text" id="kill-confirm" placeholder="粘贴完整任务 ID" autocomplete="off" spellcheck="false">
+    <div class="row">
+      <button class="btn" id="kill-cancel">取消</button>
+      <button class="btn danger" id="kill-go" disabled>终止</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script>
+"use strict";
+document.querySelectorAll('[data-apply]').forEach(b=>b.onclick=()=>parent.postMessage({type:'mylab-gpu-apply',pool:b.dataset.apply},location.origin));
+/* ============================== utilities ============================== */
+const $ = (sel) => document.querySelector(sel);
+function esc(s) { return String(s ?? "").replace(/[&<>"']/g, (c) => (
+  { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+)); }
+const TERMINAL = ["TERMINATED", "COMPLETED", "ERROR", "CANCELLED", "CANCELED", "DELETED"];
+const ACTIVE = ["RUNNING", "PULLING", "STARTING", "SCHEDULED", "QUEUED", "ASSIGNED", "ACTIVE"];
+
+function stateBadge(state) {
+  const s = String(state || "UNKNOWN");
+  let cls = "done";
+  if (ACTIVE.includes(s)) cls = s === "QUEUED" ? "wait" : (s === "RUNNING" || s === "ACTIVE" ? "run" : "info");
+  else if (s === "ERROR") cls = "err";
+  return `<span class="badge ${cls}">${esc(s)}</span>`;
+}
+function fmtTime(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d)) return esc(iso);
+  const p = (n) => String(n).padStart(2, "0");
+  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function fmtDur(start, end) {
+  if (!start) return "—";
+  const t0 = new Date(start).getTime();
+  if (isNaN(t0)) return "—";
+  const t1 = end ? new Date(end).getTime() : Date.now();
+  if (isNaN(t1) || t1 < t0) return "—";
+  let s = Math.floor((t1 - t0) / 1000);
+  const d = Math.floor(s / 86400); s %= 86400;
+  const h = Math.floor(s / 3600); s %= 3600;
+  const m = Math.floor(s / 60);
+  if (d) return `${d}d${h}h`;
+  if (h) return `${h}h${String(m).padStart(2, "0")}m`;
+  return `${m}m${String(s % 60).padStart(2, "0")}s`;
+}
+function relTime(iso) {
+  if (!iso) return "";
+  const t = new Date(iso).getTime();
+  if (isNaN(t)) return "";
+  const diff = (Date.now() - t) / 1000;
+  if (diff < 60) return "刚刚";
+  if (diff < 3600) return Math.floor(diff / 60) + " 分钟前";
+  if (diff < 86400) return Math.floor(diff / 3600) + " 小时前";
+  return Math.floor(diff / 86400) + " 天前";
+}
+const shortId = (id) => (id ? String(id).slice(0, 8) : "—");
+
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); toast("已复制", "ok"); }
+  catch { toast("复制失败，请手动选择", "err"); }
+}
+function toast(msg, cls) {
+  const el = document.createElement("div");
+  el.className = "toast " + (cls || "");
+  el.textContent = msg;
+  $("#toasts").appendChild(el);
+  setTimeout(() => el.remove(), 4200);
+}
+
+/* ============================== api ============================== */
+const pendingRequests = new Map();
+window.addEventListener('message', e => {
+ if(e.source!==parent || e.origin!==location.origin)return;
+ if(e.data?.type==='mylab-gpu-response'){
+  const p=pendingRequests.get(e.data.id);if(!p)return;clearTimeout(p.timer);pendingRequests.delete(e.data.id);
+  e.data.error?p.reject(Error(e.data.error)):p.resolve(e.data.data);
+ }
+ if(e.data?.type==='mylab-theme')document.documentElement.dataset.theme=e.data.theme;
+ if(e.data?.type==='mylab-refresh')loadOverview(true);
+});
+async function api(path, opts={}) {
+ if(document.visibilityState!=="visible" && !path.endsWith("/kill"))throw Error("页面已暂停后台采样");
+ return new Promise((resolve,reject)=>{
+  const id=crypto.randomUUID();const timer=setTimeout(()=>{pendingRequests.delete(id);reject(Error('本机响应超时，请检查 MyLab 配对与登录'));},30000);
+  pendingRequests.set(id,{resolve,reject,timer});
+  parent.postMessage({type:'mylab-gpu-request',id,path,method:opts.method||'GET',body:opts.body?JSON.parse(opts.body):{}},location.origin);
+ });
+}
+
+/* ============================== global state ============================== */
+const state = {
+  overview: null,
+  tab: "shell",
+  poolFilter: null,
+  intervalSec: Number(localStorage.getItem("mylab-det-dash-interval") ?? 30),
+  hideNoise: true,   // hide sshd/scheduling log noise by default
+  failStreak: 0,
+  drawer: null,        // {kind, id, detail}
+  tmux: { taskId: null, paneId: null, timer: null, loading: false, fails: 0, pinned: true },
+  follow: false,
+  followTimer: null,
+  logCursor: null,
+  logLines: 0,
+};
+
+/* ============================== top bar ============================== */
+function setConn(ok, text) {
+  const dot = $("#conn");
+  dot.className = "dot " + (ok ? "ok" : "bad");
+  dot.title = text || (ok ? "已连接" : "连接失败");
+}
+function showError(msg) {
+  const bar = $("#errorbar");
+  bar.textContent = "⚠ " + msg + "（正在自动重试）";
+  bar.classList.add("show");
+}
+function clearError() { $("#errorbar").classList.remove("show"); }
+
+async function loadOverview(manual) {
+  try {
+    const data = await api("/api/overview");
+    state.overview = data;
+    state.failStreak = 0;
+    clearError();
+    if(data.warnings?.length)showError(data.warnings.join("；"));
+    setConn(true, "已连接");
+    $("#m-cluster").textContent = data.cluster?.name ?? "—";
+    $("#m-version").textContent = data.cluster?.version ?? "—";
+    const master = String(data.master ?? "").trim();
+    const masterEl = $("#m-master");
+    masterEl.textContent = master || "—";
+    if (/^https?:\/\//i.test(master)) {
+      masterEl.href = master;
+      masterEl.target = "_blank";
+      masterEl.rel = "noopener noreferrer";
+      masterEl.removeAttribute("aria-disabled");
+    } else {
+      masterEl.removeAttribute("href");
+      masterEl.removeAttribute("target");
+      masterEl.removeAttribute("rel");
+      masterEl.setAttribute("aria-disabled", "true");
+    }
+    $("#m-user").textContent = data.user ?? "—";
+    $("#updated").textContent = "更新于 " + new Date().toLocaleTimeString();
+    renderPoolBar(data.pools || []);
+    renderAgents(data.agents || []);
+    renderTabs(data.tasks || {});
+    renderTaskTable();
+  } catch (err) {
+    state.failStreak++;
+    setConn(false, "连接失败: " + err.message);
+    if (manual || state.failStreak <= 2) showError(err.message);
+  }
+}
+
+function setupInterval() {
+  localStorage.setItem("mylab-det-dash-interval", String(state.intervalSec));
+  $("#interval").value = String(state.intervalSec);
+}
+$("#interval").addEventListener("change", () => { state.intervalSec = Number($("#interval").value); setupInterval(); });
+$("#refresh").addEventListener("click", () => { loadOverview(true); if (state.drawer) refreshDrawerQuiet(); });
+setupInterval();
+
+/* theme */
+const savedTheme = localStorage.getItem("mylab-det-dash-theme");
+if (savedTheme) document.documentElement.dataset.theme = savedTheme;
+$("#theme").addEventListener("click", () => {
+  const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  document.documentElement.dataset.theme = next;
+  localStorage.setItem("mylab-det-dash-theme", next);
+});
+
+/* ============================== overview render ============================== */
+function renderPoolBar(pools) {
+  const host = $("#poolbar");
+  if (!pools.length) { host.innerHTML = `<span class="muted" style="font-size:12.5px">没有可见的资源池</span>`; return; }
+  host.innerHTML = pools.map((p) => {
+    const total = p.slotsTotal || 0, used = p.slotsUsed || 0;
+    const pct = total ? Math.round((used / total) * 100) : 0;
+    const active = state.poolFilter === p.name;
+    return `<button class="tab ${active ? "active" : ""}" data-pool="${esc(p.name)}"
+      title="${esc(p.description || "")} · ${pct}% 已占用">
+      ${esc(p.name)} <b>${used}</b>/${total}${p.queued ? ` <span class="badge wait">排队${p.queued}</span>` : ""}</button>`;
+  }).join("") + (state.poolFilter ? `<button class="tab" id="poolclear">✕ 显示全部</button>` : "");
+  host.querySelectorAll("[data-pool]").forEach((el) =>
+    el.addEventListener("click", () => {
+      state.poolFilter = state.poolFilter === el.dataset.pool ? null : el.dataset.pool;
+      refreshPoolViews();
+    }));
+  const clear = $("#poolclear");
+  if (clear) clear.addEventListener("click", () => { state.poolFilter = null; refreshPoolViews(); });
+}
+function refreshPoolViews() {
+  const o = state.overview || {};
+  renderPoolBar(o.pools || []);
+  renderAgents(o.agents || []);
+}
+
+function renderAgents(agents) {
+  const host = $("#agents");
+  const list = agents.filter((a) => !state.poolFilter || (a.pools || []).includes(state.poolFilter));
+  if (!list.length) { host.innerHTML = `<div class="card muted">${state.poolFilter ? `资源池 ${esc(state.poolFilter)} 下没有可见的 agent` : "没有可见的 agent"}</div>`; return; }
+  host.innerHTML = list.map((a) => {
+    const slots = (a.slots || []).map((s) => {
+      if (s.state === "disabled") return `<div class="slot disabled" title="已禁用">—</div>`;
+      if (s.state === "free") return `<button class="slot free" data-pool="${esc((a.pools||[]).find(p=>['s3-4090','d2-a800'].includes(p))||'')}" title="GPU ${esc(s.id)} · 点击申请">${esc(s.id)}</button>`;
+      const tip = `${s.mine ? "我的 · " : ""}${esc(s.user || "UNKNOWN")}${s.taskId ? " · " + esc(shortId(s.taskId)) : ""}`;
+      const tid = s.taskId ? esc(s.taskId) : "";
+      return `<div class="slot busy${s.mine ? " mine" : ""}" data-taskid="${tid}" title="">■<span class="tip">${tip}<br><span class="muted">点击查看任务</span></span></div>`;
+    }).join("");
+    const pools = (a.pools || []).map((p) => `<span class="chip">${esc(p)}</span>`).join(" ");
+    const flags = [];
+    if (!a.enabled) flags.push("已禁用");
+    if (a.draining) flags.push("排空中");
+    return `<div class="card agent ${a.enabled ? "" : "off"}">
+      <h3>${esc(a.id)} ${flags.length ? `<span class="badge wait">${esc(flags.join(" · "))}</span>` : ""}</h3>
+      <div class="sub">GPU 空闲 <b>${a.slotsFree}</b> / ${a.slotsTotal} ${a.addresses?.length ? " · " + esc(a.addresses[0]) : ""}</div>
+      <div class="chips">${pools}</div>
+      <div class="slots">${slots}</div>
+    </div>`;
+  }).join("");
+  host.querySelectorAll('.slot.free').forEach(el=>el.onclick=()=>{if(el.dataset.pool)parent.postMessage({type:'mylab-gpu-apply',pool:el.dataset.pool},location.origin);else toast('此资源池未配置申请模板');});
+  host.querySelectorAll(".slot.busy").forEach((el) => {
+    el.addEventListener("click", () => {
+      const tid = el.dataset.taskid;
+      if (tid) openTaskSmart(tid);
+    });
+  });
+}
+
+function renderTabs(tasks) {
+  const defs = [
+    ["command", "命令", tasks.command || []],
+    ["shell", "Shell", tasks.shell || []],
+    ["experiment", "实验", tasks.experiment || []],
+  ];
+  $("#tabs").innerHTML = defs.map(([kind, label, list]) => {
+    const active = list.filter((t) => ACTIVE.includes(t.state)).length;
+    return `<button class="tab ${state.tab === kind ? "active" : ""}" data-kind="${kind}">
+      ${label} ${list.length ? `(${active ? active + "/" : ""}${list.length})` : ""}</button>`;
+  }).join("");
+  $("#tabs").querySelectorAll(".tab").forEach((el) =>
+    el.addEventListener("click", () => { state.tab = el.dataset.kind; renderTabs(tasks); renderTaskTable(); }));
+}
+
+function renderTaskTable() {
+  const data = state.overview;
+  const list = ((data && data.tasks) || {})[state.tab] || [];
+  const rows = $("#taskrows");
+  if (!list.length) {
+    rows.innerHTML = `<tr><td colspan="7" class="empty">当前账号没有${{ command: "命令", shell: "Shell", experiment: "实验" }[state.tab]}任务</td></tr>`;
+    return;
+  }
+  const sorted = [...list].sort((a, b) => {
+    const aa = ACTIVE.includes(a.state) ? 0 : 1, bb = ACTIVE.includes(b.state) ? 0 : 1;
+    if (aa !== bb) return aa - bb;
+    return String(b.startTime || "").localeCompare(String(a.startTime || ""));
+  });
+  rows.innerHTML = sorted.slice(0, 60).map((t) => `
+    <tr data-kind="${esc(t.kind)}" data-id="${esc(t.id)}">
+      <td>${stateBadge(t.state)}</td>
+      <td>${esc(t.description || "（无描述）")}</td>
+      <td class="mono">${esc(shortId(t.id))} <button class="copybtn" data-copy="${esc(t.id)}" title="复制完整 ID">⧉</button></td>
+      <td title="${esc(t.startTime || "")}">${fmtTime(t.startTime)}<br><span class="muted" style="font-size:11px">${relTime(t.startTime)}</span></td>
+      <td data-dur-start="${esc(t.startTime || "")}" data-dur-end="${esc(t.endTime || "")}">${fmtDur(t.startTime, t.endTime)}</td>
+      <td class="muted">${esc(t.pool || "—")}</td>
+      <td class="muted">查看 ›</td>
+    </tr>`).join("");
+  rows.querySelectorAll("tr[data-id]").forEach((tr) =>
+    tr.addEventListener("click", (ev) => {
+      if (ev.target.closest(".copybtn")) return;
+      openDrawer(tr.dataset.kind, tr.dataset.id);
+    }));
+  rows.querySelectorAll(".copybtn").forEach((btn) =>
+    btn.addEventListener("click", (ev) => { ev.stopPropagation(); copyText(btn.dataset.copy); }));
+}
+
+/* live duration ticker */
+setInterval(() => {
+  document.querySelectorAll("[data-dur-start]").forEach((el) => {
+    const s = el.dataset.durStart;
+    if (!s) return;
+    const end = el.dataset.durEnd || undefined;
+    if (!end) el.textContent = fmtDur(s);
+  });
+}, 1000);
+
+/* ============================== drawer ============================== */
+function closeDrawer() {
+  $("#drawer").classList.remove("show");
+  $("#overlay").classList.remove("show");
+  stopFollow();
+  stopMetrics();
+  stopTmux();
+  state.drawer = null;
+}
+$("#d-close").addEventListener("click", closeDrawer);
+$("#overlay").addEventListener("click", closeDrawer);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    if ($("#modal").classList.contains("show")) closeModal();
+    else closeDrawer();
+  }
+});
+
+async function openTaskSmart(taskId) {
+  for (const kind of ["command", "shell"]) {
+    try {
+      await api(`/api/task/${kind}/${encodeURIComponent(taskId)}`);
+      openDrawer(kind, taskId);
+      return;
+    } catch { /* try next */ }
+  }
+  toast("该容器对应的任务不在当前账号可见范围内", "err");
+}
+
+async function openDrawer(kind, id) {
+  stopFollow();
+  state.drawer = { kind, id, detail: null };
+  $("#drawer").classList.add("show");
+  $("#overlay").classList.add("show");
+  $("#d-desc").innerHTML = `<span class="spin"></span>加载中…`;
+  $("#d-idrow").textContent = "";
+  $("#d-facts").innerHTML = "";
+  $("#d-config").innerHTML = "";
+  $("#d-actions").innerHTML = "";
+  $("#d-shell").style.display = "none";
+  $("#d-tmux").style.display = "none";
+  $("#d-tmuxbody").innerHTML = "";
+  $("#tmux-status").textContent = "加载中…";
+  stopTmux();
+  resetLogs();
+  await refreshDrawerQuiet();
+  startFollowWithLoad();
+}
+
+async function refreshDrawerQuiet() {
+  const d = state.drawer;
+  if (!d) return;
+  let detail;
+  try { detail = await api(`/api/task/${d.kind}/${encodeURIComponent(d.id)}`); }
+  catch (err) {
+    $("#d-desc").textContent = "加载失败";
+    $("#d-facts").innerHTML = `<div class="fact"><div class="v" style="color:var(--red)">${esc(err.message)}</div></div>`;
+    return;
+  }
+  if (!state.drawer || state.drawer.id !== d.id) return;
+  d.detail = detail;
+  renderDrawer();
+}
+
+function renderDrawer() {
+  const d = state.drawer, t = d.detail;
+  const kindLabel = { command: "命令", shell: "Shell", experiment: "实验" }[d.kind] || d.kind;
+  $("#d-desc").innerHTML = `${stateBadge(t.state)} <span style="margin-left:6px">${esc(t.description || "（无描述）")}</span>`;
+  $("#d-idrow").innerHTML = `
+    <span class="badge info">${esc(kindLabel)}</span>
+    <span class="mono">${esc(t.id)}</span>
+    <button class="copybtn" id="d-copyid">复制 ID</button>`;
+  $("#d-copyid").addEventListener("click", () => copyText(t.id));
+
+  const raw = t.raw || {};
+  const containerId = raw.container?.id || raw.container?.containerId || "";
+  const facts = [
+    ["资源池", t.pool || raw.resourcePool || "—"],
+    ["开始时间", fmtTime(t.startTime)],
+    ["结束时间", fmtTime(t.endTime)],
+    ["时长", fmtDur(t.startTime, t.endTime)],
+  ];
+  if (t.exitStatus != null) facts.push(["退出状态", String(t.exitStatus)]);
+  if (containerId) facts.push(["容器 ID", containerId]);
+  if (raw.agentIds) facts.push(["Agent", (raw.agentIds || []).join(", ")]);
+  if (d.kind === "experiment") {
+    if (t.numTrials != null) facts.push(["Trial 数", t.numTrials]);
+    if (t.progress != null) facts.push(["进度", Math.round(t.progress * 100) + "%"]);
+    facts.push(["Experiment ID", t.id]);
+  }
+  const cs = t.configSummary || {};
+  if (cs.image) facts.push(["镜像", cs.image]);
+  if (cs.slots != null) facts.push(["Slots", cs.slots]);
+  if (cs.shmSize != null) facts.push(["共享内存", (cs.shmSize / 1e9).toFixed(0) + " GB"]);
+  if (cs.forcePull != null) facts.push(["强制拉取镜像", cs.forcePull ? "是" : "否"]);
+  $("#d-facts").innerHTML = facts.map(([k, v]) =>
+    `<div class="fact"><div class="k">${esc(k)}</div><div class="v mono">${esc(v)}</div></div>`).join("");
+
+  /* shell addresses */
+  if (d.kind === "shell" && (t.addresses || []).length) {
+    $("#d-shell").style.display = "";
+    const rows = t.addresses.map((a) =>
+      `<div class="chip">${esc(a.hostIp)}:${esc(a.hostPort)} <small>(容器 ${esc(a.containerPort)})</small></div>`).join("");
+    const reconnectCommand = `det shell open ${t.id}`;
+    $("#d-shellbody").innerHTML = `
+      <div class="chips">${rows}</div>
+      <p class="muted" style="font-size:12.5px;margin:8px 0 4px">在已配置 Determined 的本机终端重连：</p>
+      <div class="chip" style="display:inline-flex;gap:8px;align-items:center">
+        ${esc(reconnectCommand)}
+        <button class="copybtn" id="d-copyssh">复制</button>
+      </div>
+      <p class="muted" style="font-size:12.5px;margin:10px 0 0">关闭本地终端或此页面不会释放 GPU。若要释放仍活动的 Shell，请使用“终止任务”并确认完整 Shell ID，然后刷新资源状态确认槽位已释放。</p>`;
+    $("#d-copyssh").addEventListener("click", () =>
+      copyText(reconnectCommand));
+  }
+
+  if (d.kind === "shell") {
+    $("#d-tmux").style.display = "";
+    if (ACTIVE.includes(t.state)) {
+      if (state.tmux.taskId !== t.id) startTmux(t.id);
+    } else {
+      stopTmux();
+      $("#tmux-status").textContent = "Shell 已结束";
+      $("#d-tmuxbody").innerHTML = `<div class="tmux-hint">Shell 已结束，容器中的 tmux 不再可读取。</div>`;
+    }
+  } else {
+    $("#d-tmux").style.display = "none";
+    stopTmux();
+  }
+
+  /* config */
+  let cfg = "";
+  if (cs.bindMounts?.length) {
+    cfg += `<div class="k muted" style="font-size:12px;margin:10px 0 4px">挂载</div><div class="chips">` +
+      cs.bindMounts.map((m) => `<span class="chip">${esc(m.containerPath)} <small>← ${esc(m.hostPath)}${m.readOnly ? " (只读)" : ""}</small></span>`).join("") +
+      `</div>`;
+  }
+  if (cs.environmentVariables?.length) {
+    cfg += `<div class="k muted" style="font-size:12px;margin:10px 0 4px">环境变量</div><div class="chips">` +
+      cs.environmentVariables.map((e2) => `<span class="chip">${esc(e2.name)}=${esc(e2.value)}</span>`).join("") +
+      `</div>`;
+  }
+  if (t.configYaml) {
+    cfg += `<details class="block"><summary>完整配置 YAML</summary><div class="inner"><pre class="yaml">${esc(t.configYaml)}</pre></div></details>`;
+  }
+  $("#d-config").innerHTML = cfg;
+
+  /* actions */
+  const isActive = ACTIVE.includes(t.state);
+  const actions = [];
+  actions.push(`<button class="btn primary" id="a-follow">${state.follow ? "⏸ 停止跟随" : "▶ 跟随日志"}</button>`);
+  if (isActive) actions.push(`<button class="btn danger" id="a-kill">终止任务</button>`);
+  $("#d-actions").innerHTML = actions.join("");
+  $("#a-follow").addEventListener("click", toggleFollow);
+  const killBtn = $("#a-kill");
+  if (killBtn) killBtn.addEventListener("click", openKillModal);
+  /* live metrics: auto-start for running shells, hidden otherwise */
+  const panel = $("#metrics-panel");
+  if (isActive && d.kind === "shell") {
+    panel.style.display = "";
+    startMetrics(d.id);
+  } else {
+    panel.style.display = "none";
+    stopMetrics();
+  }
+}
+
+/* ================= read-only tmux topology + pane snapshots ================= */
+const TMUX_INTERVAL = 3000;
+
+function stopTmuxTimer() {
+  if (state.tmux.timer) { clearInterval(state.tmux.timer); state.tmux.timer = null; }
+}
+function stopTmux() {
+  stopTmuxTimer();
+  state.tmux.taskId = null;
+  state.tmux.paneId = null;
+  state.tmux.loading = false;
+  state.tmux.fails = 0;
+  state.tmux.pinned = true;
+}
+function startTmux(taskId) {
+  if (state.tmux.taskId === taskId && state.tmux.timer) return;
+  stopTmux();
+  state.tmux.taskId = taskId;
+  fetchTmux();
+  state.tmux.timer = setInterval(fetchTmux, TMUX_INTERVAL);
+}
+function tmuxPanes(data) {
+  return (data.sessions || []).flatMap((s) =>
+    (s.windows || []).flatMap((w) => w.panes || []));
+}
+function updateTmuxFollowUI() {
+  const button = $("#tmux-follow");
+  if (!button) return;
+  button.textContent = state.tmux.pinned ? "跟随最新" : "恢复跟随";
+  button.classList.toggle("primary", state.tmux.pinned);
+}
+function scrollTmuxToBottom() {
+  const content = $("#tmux-content");
+  if (content) content.scrollTop = content.scrollHeight;
+}
+function renderTmux(data) {
+  const body = $("#d-tmuxbody");
+  if (!body) return;
+  const select = $("#tmux-pane-select");
+  const status = $("#tmux-status");
+  const previousContent = $("#tmux-content");
+  const previousDistanceFromBottom = previousContent && !state.tmux.pinned
+    ? previousContent.scrollHeight - previousContent.scrollTop - previousContent.clientHeight
+    : null;
+  if (!data.available) {
+    if (select) {
+      select.innerHTML = `<option value="">tmux 不可用</option>`;
+      select.disabled = true;
+    }
+    if (status) status.textContent = data.reason || "tmux 不可用";
+    body.innerHTML = `<div class="tmux-hint">${esc(data.reason || "容器中不可用 tmux")}</div>`;
+    stopTmuxTimer();
+    return;
+  }
+  const panes = tmuxPanes(data);
+  const selected = data.selectedPane || state.tmux.paneId || "";
+  if (select) {
+    const options = (data.sessions || []).map((session) => `
+      <optgroup label="${esc(`${session.name || "（无名称）"} ${session.id || ""}`)}">
+        ${(session.windows || []).flatMap((window) => (window.panes || []).map((pane) =>
+          `<option value="${esc(pane.id)}">窗口 ${esc(window.index ?? "—")} / Pane ${esc(pane.index ?? "—")} · ${esc(pane.command || pane.title || "（无命令名）")} · ${esc(pane.id || "")}</option>`
+        )).join("")}
+      </optgroup>`).join("");
+    select.innerHTML = options || `<option value="">暂无 tmux session</option>`;
+    select.disabled = !panes.length;
+    select.value = selected;
+  }
+  if (status) status.textContent = `${data.sessions?.length || 0} 个 Session · ${panes.length} 个 Pane · 每 3 秒刷新`;
+  const content = selected
+    ? (data.content == null ? "正在读取…" : data.content)
+    : "选择一个 Pane 查看最近输出";
+  body.innerHTML = `<pre id="tmux-content">${esc(content)}</pre>`;
+  const contentEl = $("#tmux-content");
+  if (contentEl) {
+    contentEl.addEventListener("scroll", () => {
+      state.tmux.pinned = contentEl.scrollTop + contentEl.clientHeight >= contentEl.scrollHeight - 16;
+      updateTmuxFollowUI();
+    });
+    if (state.tmux.pinned) {
+      scrollTmuxToBottom();
+    } else if (previousDistanceFromBottom != null) {
+      /* Keep the inspected historical area stable while new output arrives. */
+      const maxTop = Math.max(0, contentEl.scrollHeight - contentEl.clientHeight);
+      contentEl.scrollTop = Math.max(0, maxTop - previousDistanceFromBottom);
+    }
+  }
+  updateTmuxFollowUI();
+}
+async function fetchTmux() {
+  const id = state.tmux.taskId;
+  if (!id || state.tmux.loading) return;
+  state.tmux.loading = true;
+  const query = new URLSearchParams({ lines: "200" });
+  if (state.tmux.paneId) query.set("pane", state.tmux.paneId);
+  try {
+    const data = await api(`/api/task/shell/${encodeURIComponent(id)}/tmux?${query}`);
+    if (state.tmux.taskId !== id) return;
+    state.tmux.fails = 0;
+    if (!state.tmux.paneId && data.available) {
+      const firstPane = tmuxPanes(data)[0];
+      if (firstPane) {
+        state.tmux.paneId = firstPane.id;
+        state.tmux.loading = false;
+        setTimeout(fetchTmux, 0);
+        return;
+      }
+    }
+    renderTmux(data);
+  } catch (err) {
+    if (state.tmux.taskId !== id) return;
+    if (state.tmux.paneId && /不存在或已结束/.test(err.message)) {
+      state.tmux.paneId = null;
+      state.tmux.loading = false;
+      setTimeout(fetchTmux, 0);
+      return;
+    }
+    state.tmux.fails++;
+    $("#d-tmuxbody").innerHTML = `<div class="tmux-hint" style="color:var(--red)">读取 tmux 失败：${esc(err.message)}</div>`;
+    if (state.tmux.fails >= 3) stopTmuxTimer();
+  } finally {
+    state.tmux.loading = false;
+  }
+}
+$("#tmux-pane-select").addEventListener("change", () => {
+  state.tmux.paneId = $("#tmux-pane-select").value || null;
+  state.tmux.pinned = true;
+  updateTmuxFollowUI();
+  fetchTmux();
+});
+$("#tmux-follow").addEventListener("click", () => {
+  state.tmux.pinned = true;
+  updateTmuxFollowUI();
+  scrollTmuxToBottom();
+});
+$("#tmux-refresh").addEventListener("click", fetchTmux);
+
+/* ================= live metrics: chips + real-time charts ================= */
+const METRICS_INTERVAL = 3000, MAX_POINTS = 120;
+const metrics = { taskId: null, timer: null, fails: 0, buf: [] };
+
+function startMetrics(taskId) {
+  if (metrics.taskId !== taskId) { metrics.buf = []; metrics.taskId = taskId; metrics.fails = 0; }
+  stopMetricsTimer();
+  fetchMetrics();
+  metrics.timer = setInterval(fetchMetrics, METRICS_INTERVAL);
+}
+function stopMetrics() { metrics.taskId = null; stopMetricsTimer(); }
+function stopMetricsTimer() { if (metrics.timer) { clearInterval(metrics.timer); metrics.timer = null; } }
+
+async function fetchMetrics() {
+  const id = metrics.taskId;
+  if (!id) return;
+  try {
+    const data = await api(`/api/task/shell/${encodeURIComponent(id)}/metrics`);
+    if (metrics.taskId !== id) return;
+    metrics.fails = 0;
+    metrics.buf.push(data);
+    while (metrics.buf.length > MAX_POINTS) metrics.buf.shift();
+    renderMetrics(data);
+  } catch (err) {
+    if (++metrics.fails >= 3) {
+      stopMetrics();
+      const grid = $("#chart-grid");
+      if (grid) grid.innerHTML = `<div class="muted">实时采样已停止：${esc(err.message)}</div>`;
+    }
+  }
+}
+
+function fmtGiB(mib) { return (mib / 1024).toFixed(1); }
+
+function renderMetrics(data) {
+  const gpus = data.gpus || [];
+  const n = gpus.length;
+  const agg = data.agg;
+  const ram = data.ram;
+  const chips = [];
+  if (agg) {
+    const prefix = n > 1 ? `GPU×${n} ` : "";
+    chips.push(`<span class="chip big">${prefix}利用率 <b>${Math.round(agg.util)}%</b>${n > 1 ? " <small class=\"muted\">峰值</small>" : ""}</span>`);
+    chips.push(`<span class="chip big">显存 <b>${fmtGiB(agg.memUsed)}</b>/${fmtGiB(agg.memTotal)}G</span>`);
+    chips.push(`<span class="chip big">温度 <b>${Math.round(agg.temp)}°C</b></span>`);
+    chips.push(`<span class="chip big">功耗 <b>${Math.round(agg.power)}W</b></span>`);
+  } else {
+    chips.push(`<span class="chip big muted">容器内无 GPU 设备</span>`);
+  }
+  if (ram) chips.push(`<span class="chip big">内存 <b>${(ram.used / 1073741824).toFixed(1)}</b>/${(ram.total / 1073741824).toFixed(0)}G</span>`);
+  if (data.load) chips.push(`<span class="chip big">负载 <b>${data.load[0].toFixed(2)}</b></span>`);
+  if (data.disk && data.disk.root != null) chips.push(`<span class="chip big">磁盘 / <b>${data.disk.root}%</b>${data.disk.data != null ? ` · dataset <b>${data.disk.data}%</b>` : ""}</span>`);
+  $("#metric-chips").innerHTML = chips.join("");
+
+  if (n) {
+    /* one curve per GPU */
+    const idx = [...Array(n).keys()];
+    const utilSeries = idx.map((i) => ({
+      values: metrics.buf.map((m) => (m.gpus && m.gpus[i]) ? m.gpus[i].util : null),
+      color: GPU_COLORS[i % GPU_COLORS.length], label: `GPU ${i}`,
+    }));
+    drawSeries($("#chart-util"), utilSeries, { max: 100, unit: "%" });
+    setLegend("legend-util", utilSeries, n > 1);
+
+    const vramMax = Math.max(...gpus.map((g) => g.memTotal)) / 1024;
+    const vramSeries = idx.map((i) => ({
+      values: metrics.buf.map((m) => (m.gpus && m.gpus[i]) ? m.gpus[i].memUsed / 1024 : null),
+      color: GPU_COLORS[i % GPU_COLORS.length], label: `GPU ${i}`,
+    }));
+    drawSeries($("#chart-vram"), vramSeries, { min: 0, max: vramMax, unit: "GiB" });
+    setLegend("legend-vram", vramSeries, n > 1);
+  }
+  if (ram) {
+    const ramSeries = [{ values: metrics.buf.map((m) => m.ram ? m.ram.used / 1073741824 : null), color: "#3fb96f", label: "内存" }];
+    drawSeries($("#chart-ram"), ramSeries, { min: 0, unit: "GiB" });
+    setLegend("legend-ram", ramSeries, false);
+  }
+}
+
+const GPU_COLORS = ["#4cc2ff", "#b58cf6", "#3fb96f", "#d9a53a", "#e5534b", "#f778ba", "#7ee787", "#ffa657"];
+function setLegend(elId, series, visible) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  el.style.display = visible ? "" : "none";
+  if (visible) {
+    el.innerHTML = series.map((s) =>
+      `<span class="lg"><i style="background:${s.color}"></i>${esc(s.label)}</span>`).join("");
+  }
+}
+
+/* series: [{values:[num|null], color, label}] */
+function drawSeries(canvas, series, opts) {
+  if (!canvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.clientWidth || 300, H = canvas.clientHeight || 140;
+  if (canvas.width !== W * dpr || canvas.height !== H * dpr) {
+    canvas.width = W * dpr; canvas.height = H * dpr;
+  }
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  const pad = { l: 34, r: 8, t: 10, b: 6 };
+  const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+  const all = series.flatMap((s) => s.values.filter((v) => v != null));
+  let lo = opts.min != null ? opts.min : Math.min(...all, 0);
+  let hi = opts.max != null ? opts.max : Math.max(...all, 1) * 1.15;
+  if (hi - lo < 1e-9) hi = lo + 1;
+  const longest = series.reduce((m, s) => Math.max(m, s.values.length), 0);
+  const X = (i) => pad.l + (longest <= 1 ? iw : (i / (longest - 1)) * iw);
+  const Y = (v) => pad.t + ih - ((v - lo) / (hi - lo)) * ih;
+  /* gridlines */
+  ctx.strokeStyle = "rgba(128,140,155,.18)"; ctx.lineWidth = 1;
+  ctx.fillStyle = "rgba(139,152,165,.9)"; ctx.font = "10px ui-monospace,monospace";
+  for (let g = 0; g <= 3; g++) {
+    const v = lo + ((hi - lo) * g) / 3, y = Y(v);
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke();
+    ctx.fillText(fmtAxis(v, opts.unit), 2, y + 3);
+  }
+  if (!all.length) {
+    ctx.fillStyle = "rgba(139,152,165,.7)";
+    ctx.fillText("等待数据…", pad.l + 8, pad.t + ih / 2);
+    return;
+  }
+  for (const s of series) {
+    const vals = s.values;
+    const first = vals.findIndex((v) => v != null);
+    if (first < 0) continue;
+    ctx.beginPath();
+    let started = false;
+    vals.forEach((v, i) => {
+      if (v == null) return;
+      if (!started) { ctx.moveTo(X(i), Y(v)); started = true; }
+      else ctx.lineTo(X(i), Y(v));
+    });
+    ctx.strokeStyle = s.color; ctx.lineWidth = 1.8; ctx.stroke();
+    const lastIdx = vals.length - 1;
+    if (started && vals[lastIdx] != null) {
+      ctx.lineTo(X(lastIdx), Y(Math.max(lo, 0))); ctx.lineTo(X(first), Y(Math.max(lo, 0)));
+      ctx.closePath();
+      const grad = ctx.createLinearGradient(0, pad.t, 0, pad.t + ih);
+      grad.addColorStop(0, s.color + "40"); grad.addColorStop(1, s.color + "05");
+      ctx.fillStyle = grad; ctx.fill();
+    }
+  }
+}
+function fmtAxis(v, unit) {
+  if (unit === "GiB") return v >= 10 ? v.toFixed(0) : v.toFixed(1);
+  return v.toFixed(0);
+}
+/* redraw charts on layout changes */
+window.addEventListener("resize", () => {
+  if (metrics.buf.length) renderMetrics(metrics.buf[metrics.buf.length - 1]);
+});
+
+/* ============================== logs ============================== */
+const logview = $("#logview");
+function resetLogs() {
+  stopFollow();
+  state.logCursor = null;
+  state.logLines = 0;
+  pinned = true;
+  logview.innerHTML = `<span class="muted">点击「重新加载」或开启「跟随」查看日志。</span>`;
+  $("#log-count").textContent = "";
+  $("#log-follow").textContent = "▶ 跟随";
+  $("#log-follow").classList.remove("primary");
+}
+function appendLogs(entries) {
+  const filter = $("#log-filter").value.trim().toLowerCase();
+  const displayEntries = entries.filter((e) => {
+    const stream = String(e.stdtype || e.source || "").toLowerCase();
+    return !(stream === "stderr" && !String(e.msg ?? "").trim());
+  });
+  const frag = document.createElement("template");
+  for (const e of displayEntries) {
+    const msg = String(e.msg ?? "");
+    const stream = String(e.stdtype || e.source || "log");
+    const line = document.createElement("span");
+    line.className = "ln";
+    line.dataset.msg = msg;
+    const isErr = stream.toLowerCase() === "stderr" && !NOISE_RE.test(msg); // sshd dust is not a real error
+    line.innerHTML =
+      `<span class="ts">${esc((e.ts || "").replace("T", " ").slice(5, 19))}</span> ` +
+      `<span class="src ${esc(stream)}">[${esc(stream)}]</span> ` +
+      `<span class="${isErr ? "msgerr" : ""}">${esc(msg)}</span>`;
+    if (filter && !msg.toLowerCase().includes(filter)) line.classList.add("hidden");
+    if (state.hideNoise && NOISE_RE.test(msg)) line.classList.add("hidden");
+    frag.content.appendChild(line);
+  }
+  /* drop the placeholder once real lines exist, then append in order */
+  if (displayEntries.length && !logview.querySelector(".ln")) logview.textContent = "";
+  logview.appendChild(frag.content);
+  state.logLines += displayEntries.length;
+  applyNoiseFilter();
+  /* trim very old lines */
+  while (state.logLines > 6000) { const n = logview.querySelector(".ln"); if (n) { n.remove(); state.logLines--; } else break; }
+  $("#log-count").textContent = state.logLines + " 行";
+  stickBottom();
+}
+let pinned = true;
+logview.addEventListener("scroll", () => {
+  pinned = logview.scrollTop + logview.clientHeight >= logview.scrollHeight - 24;
+});
+function stickBottom() { if (pinned) logview.scrollTop = logview.scrollHeight; }
+$("#log-filter").addEventListener("input", () => {
+  const q = $("#log-filter").value.trim().toLowerCase();
+  logview.querySelectorAll(".ln").forEach((ln) => {
+    ln.classList.toggle("hidden", !!q && !ln.textContent.toLowerCase().includes(q));
+  });
+  applyNoiseFilter();
+});
+/* sshd / scheduling noise: hidden by default so real output stands out */
+const NOISE_RE = /Accepted publickey|Received disconnect|Disconnected from user|Server listening on|channel \d+|debug1|Connection (closed|reset by peer)|Permanently added|task was terminated|was assigned to an agent|image already found|copying files to container|Running pip as the? '?root|Task log stream ended|Scheduling .*\(id:|Resources for .* have started|Service of .* is available|Waiting for shell|shell \(id:.* is ready/;
+function applyNoiseFilter() {
+  const q = $("#log-filter").value.trim().toLowerCase();
+  logview.querySelectorAll(".ln").forEach((ln) => {
+    const msg = ln.dataset.msg || ln.textContent;
+    ln.classList.toggle("hidden",
+      ((q && !msg.toLowerCase().includes(q)) || (state.hideNoise && NOISE_RE.test(msg))));
+  });
+}
+$("#log-noise").addEventListener("change", () => {
+  state.hideNoise = $("#log-noise").checked;
+  applyNoiseFilter();
+});
+$("#log-reload").addEventListener("click", () => {
+  const wasFollowing = state.follow;
+  resetLogs();
+  if (wasFollowing) startFollowWithLoad();
+  else autoLoadLogs();
+});
+
+async function fetchLogsIncremental() {
+  const d = state.drawer;
+  if (!d) return;
+  const q = new URLSearchParams({ limit: "500", state: "1" });
+  if (state.logCursor != null) q.set("after", state.logCursor);
+  try {
+    const data = await api(`/api/task/${d.kind}/${encodeURIComponent(d.id)}/logs?${q}`);
+    if (data.entries?.length) {
+      appendLogs(data.entries);
+      const last = data.entries[data.entries.length - 1];
+      if (last.id != null) state.logCursor = last.id;
+    }
+    if (data.state && TERMINAL.includes(data.state)) {
+      stopFollow();
+      appendSystemLine(`— 任务已结束（${data.state}），跟随停止 —`);
+    }
+  } catch (err) {
+    appendSystemLine("— 拉取日志失败: " + err.message + " —");
+    stopFollow();
+  }
+}
+function appendSystemLine(text) {
+  const line = document.createElement("span");
+  line.className = "ln muted";
+  line.textContent = text;
+  logview.appendChild(line);
+  stickBottom();
+}
+async function autoLoadLogs() {
+  const d = state.drawer;
+  if (!d) return;
+  const limit = $("#log-tail").value;
+  logview.innerHTML = `<span class="spin"></span>`;
+  try {
+    const data = await api(`/api/task/${d.kind}/${encodeURIComponent(d.id)}/logs?limit=${limit}`);
+    logview.textContent = "";
+    if (data.entries?.length) {
+      state.logCursor = data.entries[data.entries.length - 1].id;
+      appendLogs(data.entries);
+    } else {
+      logview.innerHTML = `<span class="muted">暂无日志${data.trialId ? "" : "（实验可能尚未产生 trial 日志）"}</span>`;
+      state.logLines = 0;
+    }
+  } catch (err) {
+    logview.innerHTML = `<span class="msgerr">日志加载失败: ${esc(err.message)}</span>`;
+  }
+}
+function startFollowWithLoad() {
+  state.follow = true;
+  $("#log-follow").textContent = "⏸ 停止跟随";
+  $("#log-follow").classList.add("primary");
+  const a = $("#a-follow");
+  if (a) a.textContent = "⏸ 停止跟随";
+  autoLoadLogs().then(() => { if (state.follow) startPoll(); });
+}
+function toggleFollow() {
+  if (state.follow) stopFollow();
+  else startFollowWithLoad();
+  const btn = $("#a-follow");
+  if (btn) btn.textContent = state.follow ? "⏸ 停止跟随" : "▶ 跟随日志";
+}
+function startPoll() {
+  stopPollTimer();
+  state.followTimer = setInterval(fetchLogsIncremental, 2000);
+}
+function stopPollTimer() { if (state.followTimer) { clearInterval(state.followTimer); state.followTimer = null; } }
+function stopFollow() {
+  state.follow = false;
+  stopPollTimer();
+  const b = $("#log-follow"); if (b) { b.textContent = "▶ 跟随"; b.classList.remove("primary"); }
+  const a = $("#a-follow"); if (a) a.textContent = "▶ 跟随日志";
+}
+$("#log-follow").addEventListener("click", toggleFollow);
+
+/* ============================== kill modal ============================== */
+let killCtx = null;
+function openKillModal() {
+  const d = state.drawer;
+  if (!d) return;
+  killCtx = { kind: d.kind, id: d.id };
+  $("#kill-target").textContent = `${d.kind} · ${d.id}`;
+  $("#kill-confirm").value = "";
+  $("#kill-go").disabled = true;
+  $("#modal").classList.add("show");
+  $("#kill-confirm").focus();
+}
+function closeModal() { $("#modal").classList.remove("show"); killCtx = null; }
+$("#kill-cancel").addEventListener("click", closeModal);
+$("#kill-confirm").addEventListener("input", () => {
+  $("#kill-go").disabled = $("#kill-confirm").value.trim() !== (killCtx && killCtx.id);
+});
+$("#kill-go").addEventListener("click", async () => {
+  if (!killCtx) return;
+  const btn = $("#kill-go");
+  btn.disabled = true;
+  try {
+    await api(`/api/task/${killCtx.kind}/${encodeURIComponent(killCtx.id)}/kill`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirm: $("#kill-confirm").value.trim() }),
+    });
+    toast("已发送终止指令: " + shortId(killCtx.id), "ok");
+    closeModal();
+    setTimeout(() => { loadOverview(false); refreshDrawerQuiet(); }, 1200);
+  } catch (err) {
+    toast("终止失败: " + err.message, "err");
+    btn.disabled = false;
+  }
+});
+
+/* ============================== boot ============================== */
+loadOverview(true);
+let timer = null;
+function armTimer() {
+  if (timer) clearInterval(timer);
+  if (state.intervalSec > 0) timer = setInterval(() => loadOverview(false), state.intervalSec * 1000);
+}
+armTimer();
+$("#interval").addEventListener("change", armTimer);
+</script>
+</body>
+</html>

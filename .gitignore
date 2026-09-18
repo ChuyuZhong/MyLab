@@ -9,3 +9,6 @@ dist/
 coverage/
 MyLab-settings-*.json
 .DS_Store
+
+__pycache__/
+*.pyc
