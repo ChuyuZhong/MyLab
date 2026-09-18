@@ -1,3 +1,4 @@
+import {installTerminalWebSocket} from './gpu-websocket.mjs';
 import {openTerminal,terminalAction} from './gpu-terminal.mjs';
 import {dashboardRequest} from './gpu-dashboard.mjs';
 import {templates,poolAvailability,submit,readJob,killTask,assertOwner,safeTask,taskMonitor} from './gpu-control.mjs';
@@ -307,6 +308,7 @@ const server = http.createServer(async (req, res) => {
     }
     if(path.startsWith('/gpu/terminal/') && req.method==='POST'){
       const action=path.slice('/gpu/terminal/'.length),q=await body(req),session={base:gpuBase,username:gpuUsername,token:gpuToken};
+      if(action==='ticket'){json(res,200,issueTerminalTicket(q,session,origin));return;}
       json(res,200,action==='open'?await openTerminal(q,session,async id=>(await gpuGet('/api/v1/shells/'+encodeURIComponent(id))).shell):terminalAction(action,q,session));return;
     }
     if(path==="/gpu/dashboard" && req.method==="POST"){const q=await body(req);json(res,200,await dashboardRequest(q,{base:gpuBase,token:gpuToken,username:gpuUsername}));return;}
@@ -405,6 +407,7 @@ if (
   delete process.env.GPU_PASSWORD;
   delete process.env.GPU_USER;
 }
+const issueTerminalTicket=installTerminalWebSocket(server,{origins,port,session:()=>({base:gpuBase,username:gpuUsername,token:gpuToken})});
 server.listen(port, "127.0.0.1", () => {
   console.log(`MyLab local bridge: http://127.0.0.1:${port}`);
   console.log(`Pairing code (memory only): ${pairing}`);
