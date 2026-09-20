@@ -8,6 +8,7 @@ import {
   makeBackup,
 } from "../src/core.ts";
 import {
+  readingHeader,
   weekStartFor,
   weekIdentity,
   completedThisWeek,
@@ -194,4 +195,16 @@ test("oversized inputs produce an actionable error instead of silently truncatin
   assert.throws(() =>
     buildWeeklyMessages(reportInputs(draft, [], []), "skill"),
   );
+});
+
+
+test('paper headings never substitute a source headline for the original paper title',()=>{
+ const input=reportInputs({...emptyReport(start),articleIds:[article.id]},[article],[]);
+ const r=input.readings[0];
+ const missing=readingHeader({...r,paperTitle:'',publication:''},0);
+ assert.ok(!missing.includes(`《${r.title}》`));
+ assert.ok(missing.includes('论文原始名称待核实，年份待核实，期刊待核实，发表单位待核实，通讯作者待核实'));
+ assert.equal(readingHeader({...r,paperTitle:'Original Paper Title',publication:'2026，Journal，University A、University B，Author A、Author B'},0),'1. 《Original Paper Title》，2026，Journal，University A、University B，Author A、Author B');
+ assert.ok(readingHeader({...r,paperTitle:'Original Paper Title',publication:'2026，Journal，，'},0).endsWith('2026，Journal，发表单位待核实，通讯作者待核实'));
+ assert.ok(readingHeader({...r,paperTitle:'Original Paper Title',publication:'Legacy unsorted metadata'},0).includes('年份待核实'));
 });

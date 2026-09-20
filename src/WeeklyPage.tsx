@@ -367,7 +367,7 @@ export default function WeeklyPage() {
                         </div>
                         <Field
                           label={`论文原题 ${i + 1}`}
-                          hint="选填；未提供时会明确采用来源文章标题。"
+                          hint="填写论文原文的正式题名，保留原始语言；不填时标注待核实，不采用推文标题。"
                         >
                           <input
                             maxLength={500}
@@ -377,14 +377,14 @@ export default function WeeklyPage() {
                             }
                           />
                         </Field>
-                        <Field label={`期刊、年份与团队 ${i + 1}`}>
+                        <Field label={`年份、期刊、发表单位与通讯作者 ${i + 1}`} hint="按四项顺序以逗号隔开；同项多人或单位用顿号。请核对论文原文或出版社资料，未知项写待核实；旧格式需重新整理。">
                           <input
                             maxLength={500}
                             value={draft.readingNotes[a.id]?.publication || ""}
                             onChange={(e) =>
                               note(a.id, { publication: e.target.value })
                             }
-                            placeholder="只填已知信息"
+                            placeholder="2026，期刊名称，发表单位，通讯作者名字"
                           />
                         </Field>
                         <Field
