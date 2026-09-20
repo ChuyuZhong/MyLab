@@ -5,7 +5,8 @@ import path from 'node:path';
 import {load} from 'cheerio';
 import {gpuConfigs} from './gpu-local.mjs';
 const exec=promisify(execFile);
-export const templates={'s3-4090':'zcy_task.yaml','d2-a800':'zcy_task_a800.yaml'};
+export const baseTemplate='zcy_task.yaml';
+export function poolOptions(agents,pools){return [...new Set(pools.map(p=>p.name).filter(n=>typeof n==='string'&&n))].map(pool=>({pool,file:baseTemplate,available:poolAvailability(agents,pool)}));}
 export function validateCount(count,available){
   if(!Number.isInteger(count)||count<0||count>available)throw Error(`卡数必须是 0 至 ${available} 的整数`);
   return count;
@@ -22,17 +23,17 @@ const dir=path.resolve('.local/gpu-control');
 async function save(job){await fs.mkdir(dir,{recursive:true});await fs.writeFile(path.join(dir,job.key+'.json'),JSON.stringify(job));}
 function validKey(key){if(typeof key!=='string'||! /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(key))throw Error('任务标识无效');}
 export async function readJob(key,owner){validKey(key);let j=jobs.get(key);if(!j){try{j=JSON.parse(await fs.readFile(path.join(dir,key+'.json'),'utf8'));}catch{throw Error('未找到申请记录');}if(j.status==='running')j={...j,status:'unknown',message:'服务已重启，请先刷新我的任务核对，勿重复申请。'};}if(j.owner!==owner)throw Error('申请记录不属于当前账号');return j;}
-export async function submit(q,session,getAgents){
+export async function submit(q,session,getAgents,getPools){
  if(!session.token||!session.username)throw Error('请先登录实验室');validKey(q.key);
  if(locks.has(session.username))throw Error('正在提交申请，请等待');
  locks.add(session.username);
  try{
   try{return await readJob(q.key,session.username);}catch(e){if(e.message!=='未找到申请记录')throw e;}
-  if(!Object.hasOwn(templates,q.pool))throw Error('不支持此资源池');
   const a=await getAgents();
-  if(!a.some(x=>(x.resourcePools||[]).includes(q.pool)))throw Error('资源池不存在');
+  const pools=getPools?await getPools():a.flatMap(x=>(x.resourcePools||[]).map(name=>({name})));
+  if(typeof q.pool!=='string'||!pools.some(p=>p.name===q.pool))throw Error('资源池不存在');
   validateCount(q.count,poolAvailability(a,q.pool));
-  const config=await gpuConfigs(templates[q.pool]);
+  const config=await gpuConfigs(baseTemplate);
   const file=path.join(dir,q.key+'.yaml');await fs.mkdir(dir,{recursive:true});await fs.writeFile(file,config.text);
   const job={key:q.key,owner:session.username,pool:q.pool,count:q.count,taskId:'',status:'running',message:'正在提交，请勿重复申请',createdAt:new Date().toISOString()};
   await save(job);jobs.set(q.key,job);

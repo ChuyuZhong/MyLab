@@ -1,7 +1,7 @@
 import {installTerminalWebSocket} from './gpu-websocket.mjs';
 import {openTerminal,terminalAction} from './gpu-terminal.mjs';
 import {dashboardRequest} from './gpu-dashboard.mjs';
-import {templates,poolAvailability,submit,readJob,killTask,assertOwner,safeTask,taskMonitor} from './gpu-control.mjs';
+import {poolOptions,submit,readJob,killTask,assertOwner,safeTask,taskMonitor} from './gpu-control.mjs';
 import http from "node:http";
 import https from "node:https";
 import dns from "node:dns/promises";
@@ -313,9 +313,9 @@ const server = http.createServer(async (req, res) => {
     }
     if(path==="/gpu/dashboard" && req.method==="POST"){const q=await body(req);json(res,200,await dashboardRequest(q,{base:gpuBase,token:gpuToken,username:gpuUsername}));return;}
     if(path==="/gpu/options" && req.method==="GET"){
-      const a=await gpuGet('/api/v1/agents');json(res,200,{pools:Object.entries(templates).map(([pool,file])=>({pool,file,available:poolAvailability(a.agents||[],pool)}))});return;
+      const [a,p]=await Promise.all([gpuGet('/api/v1/agents'),gpuGet('/api/v1/resource-pools')]);json(res,200,{pools:poolOptions(a.agents||[],p.resourcePools||[])});return;
     }
-    if(path==="/gpu/submit" && req.method==="POST"){const q=await body(req);json(res,200,await submit(q,{base:gpuBase,token:gpuToken,username:gpuUsername},async()=>(await gpuGet('/api/v1/agents')).agents||[]));return;}
+    if(path==="/gpu/submit" && req.method==="POST"){const q=await body(req);json(res,200,await submit(q,{base:gpuBase,token:gpuToken,username:gpuUsername},async()=>(await gpuGet('/api/v1/agents')).agents||[],async()=>(await gpuGet('/api/v1/resource-pools')).resourcePools||[]));return;}
     if(path==="/gpu/job" && req.method==="POST"){const q=await body(req);json(res,200,await readJob(q.key,gpuUsername));return;}
     if(path==="/gpu/tasks" && req.method==="GET"){
       const r=await gpuGet('/api/v1/shells');json(res,200,{tasks:(r.shells||[]).map(safeTask)});return;

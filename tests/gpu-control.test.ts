@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {validateCount,poolAvailability,assertOwner,safeTask,parseMonitor,submit} from '../scripts/gpu-control.mjs';
+import {poolOptions,validateCount,poolAvailability,assertOwner,safeTask,parseMonitor,submit} from '../scripts/gpu-control.mjs';
 test('GPU counts accept zero and capacity but reject excess, fractional and string input',()=>{
  assert.equal(validateCount(0,0),0);assert.equal(validateCount(3,3),3);
  for(const value of [-1,4,0.5,'0',null,NaN,Infinity])assert.throws(()=>validateCount(value,3));
@@ -23,4 +23,20 @@ test('monitor ignores prefix, preserves both per-card groups, zeros and metadata
 });
 test('submission rejects over-capacity before reading config or executing commands',async()=>{
  await assert.rejects(submit({key:'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',pool:'s3-4090',count:1},{username:'test',token:'test'},async()=>[{enabled:true,resourcePools:['s3-4090'],slots:{}}]),/0 至 0/);
+});
+
+test('live pools share one base template, including project and pools without agents',()=>{
+ const agents=[{enabled:true,resourcePools:['s3-4090-project'],slots:{a:{enabled:true,device:{type:'TYPE_CUDA'}}}}];
+ assert.deepEqual(poolOptions(agents,[{name:'s3-4090'},{name:'d2-a800'},{name:'s3-4090-project'},{name:'future-pool'}]),[
+  {pool:'s3-4090',file:'zcy_task.yaml',available:0},
+  {pool:'d2-a800',file:'zcy_task.yaml',available:0},
+  {pool:'s3-4090-project',file:'zcy_task.yaml',available:1},
+  {pool:'future-pool',file:'zcy_task.yaml',available:0},
+ ]);
+});
+test('project submission validates live capacity and rejects removed pools before executing',async()=>{
+ const q={key:'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',pool:'s3-4090-project',count:1};
+ const session={username:'test',token:'test'};
+ await assert.rejects(submit(q,session,async()=>[],async()=>[{name:q.pool}]),/0 至 0/);
+ await assert.rejects(submit({...q,count:0},session,async()=>[{resourcePools:[q.pool]}],async()=>[]),/资源池不存在/);
 });
