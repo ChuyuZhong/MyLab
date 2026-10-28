@@ -52,7 +52,8 @@ export function parseMonitor(html){
 }
 const histories=new Map();let cache=[],cachedAt=0,pending;
 export async function taskMonitor(id){
- if(Date.now()-cachedAt>30000){if(!pending)pending=(async()=>{const r=await fetch(process.env.MYLAB_GPU_MONITOR_URL||'http://172.17.167.89:5005/',{signal:AbortSignal.timeout(15000),redirect:'error'});if(!r.ok)throw Error('监控页面读取失败');const html=await r.text();if(html.length>3000000)throw Error('监控页面过大');cache=parseMonitor(html);cachedAt=Date.now();})().finally(()=>{pending=null;});await pending;}
+ const url=process.env.MYLAB_GPU_MONITOR_URL;if(!url)return {series:[],message:'请在本机 .env.local 配置 MYLAB_GPU_MONITOR_URL（实验室 5005 监控页）'};
+ if(Date.now()-cachedAt>30000){if(!pending)pending=(async()=>{const r=await fetch(url,{signal:AbortSignal.timeout(15000),redirect:'error'});if(!r.ok)throw Error('监控页面读取失败');const html=await r.text();if(html.length>3000000)throw Error('监控页面过大');cache=parseMonitor(html);cachedAt=Date.now();})().finally(()=>{pending=null;});await pending;}
  const row=cache.find(r=>r.taskId===id);if(!row)return {series:[],message:'该任务尚未上报监控；0 卡任务可能没有 GPU 指标'};
  const time=Date.parse(row.sampledAt.replace(' ','T')+( /Z$|[+-]\d\d:\d\d$/.test(row.sampledAt)?'':'+08:00'));
  const history=(histories.get(id)||[]).filter(r=>r.time>Date.now()-1800000);

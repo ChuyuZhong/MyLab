@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {poolOptions,validateCount,poolAvailability,assertOwner,safeTask,parseMonitor,submit} from '../scripts/gpu-control.mjs';
+import {poolOptions,validateCount,poolAvailability,assertOwner,safeTask,parseMonitor,submit,taskMonitor} from '../scripts/gpu-control.mjs';
 test('GPU counts accept zero and capacity but reject excess, fractional and string input',()=>{
  assert.equal(validateCount(0,0),0);assert.equal(validateCount(3,3),3);
  for(const value of [-1,4,0.5,'0',null,NaN,Infinity])assert.throws(()=>validateCount(value,3));
@@ -39,4 +39,8 @@ test('project submission validates live capacity and rejects removed pools befor
  const session={username:'test',token:'test'};
  await assert.rejects(submit(q,session,async()=>[],async()=>[{name:q.pool}]),/0 至 0/);
  await assert.rejects(submit({...q,count:0},session,async()=>[{resourcePools:[q.pool]}],async()=>[]),/资源池不存在/);
+});
+test('monitor address comes only from the environment',async()=>{
+ const saved=process.env.MYLAB_GPU_MONITOR_URL;delete process.env.MYLAB_GPU_MONITOR_URL;
+ try{const r=await taskMonitor('task-1');assert.deepEqual(r.series,[]);assert.match(r.message,/MYLAB_GPU_MONITOR_URL/);}finally{if(saved!==undefined)process.env.MYLAB_GPU_MONITOR_URL=saved;}
 });
