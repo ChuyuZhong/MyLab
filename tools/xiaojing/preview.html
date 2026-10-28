@@ -1,0 +1,50 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>小鲸 rig preview</title>
+<style>
+  body { margin: 0; padding: 8px; background: #e7ebf8; display: flex; flex-wrap: wrap; gap: 8px; }
+  canvas { background: #fff; border-radius: 10px; }
+</style>
+<script type="module">
+  // Debug view for tuning the rig: each card's cut-out with every moving part's polygon and pivot,
+  // its effect boxes and tail joints. ?mood=work shows one card; ?scale=2 zooms.
+  import { cutPanels } from "./panels.js";
+  import { RIGS } from "./rig.js";
+  const q = new URLSearchParams(location.search);
+  const scale = Number(q.get("scale") || 1);
+  const panels = await cutPanels();
+  const colours = ["#e5484d", "#2f80ed", "#30a46c", "#f5a524", "#8e4ec6", "#12a594", "#d6409f"];
+  for (const [mood, p] of Object.entries(panels)) {
+    if (q.get("mood") && q.get("mood") !== mood) continue;
+    const [W, H] = p.size, c = document.createElement("canvas");
+    c.width = W * scale;
+    c.height = H * scale;
+    c.title = mood;
+    const g = c.getContext("2d");
+    g.scale(scale, scale);
+    g.drawImage(p.figure, 0, 0);
+    for (const e of Object.values(p.effects)) g.drawImage(e.canvas, e.box[0], e.box[1]);
+    const rig = RIGS[mood];
+    [...rig.parts, ...(rig.layers || []).flatMap((l) => [{ poly: l.poly }, ...l.parts.map((x) => ({ pivot: x.pivot }))])].forEach((part, i) => {
+      g.strokeStyle = g.fillStyle = colours[i % colours.length];
+      g.lineWidth = 1.2 / scale + 0.4;
+      if (part.poly && part.poly.length < 20) {
+        g.beginPath();
+        part.poly.forEach(([x, y], k) => (k ? g.lineTo(x, y) : g.moveTo(x, y)));
+        g.closePath();
+        g.stroke();
+      }
+      if (part.pivot) g.fillRect(part.pivot[0] - 3, part.pivot[1] - 3, 6, 6);
+    });
+    for (const [cx, cy, rx, ry] of rig.blink?.eyes || []) {
+      g.strokeStyle = "#f0f";
+      g.beginPath();
+      g.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+      g.stroke();
+    }
+    g.strokeStyle = "#999";
+    g.strokeRect(...p.tail.box);
+    document.body.append(c);
+  }
+  document.title = "ready";
+</script>

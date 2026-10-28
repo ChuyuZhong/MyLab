@@ -1,5 +1,5 @@
 import { WechatPage } from "./Wechat";
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   LayoutDashboard,
   CalendarDays,
@@ -11,14 +11,19 @@ import {
   HardDrive,
   Sun,
   Moon,
-  PanelLeftClose,
   Sparkles,
   X,
   CheckCircle,
   FilePenLine,
 } from "lucide-react";
 import { AppProvider, usePersistedData } from "./store";
-import { dayKey, newTask, toggleTask, validDay } from "./core";
+import { dayKey, mergeBackup, newTask, toggleTask, validateBackup, validDay } from "./core";
+import { applyConfig, parseConfig, type ImportedConfig } from "./config-transfer";
+import { configIsNew, fetchLocalBoot, markConfigApplied, storageWasEmpty } from "./local-boot";
+import { WhaleMark } from "./Mascot";
+import { MascotPet } from "./MascotPet";
+import { emitMascot, markActive } from "./mascot-mood";
+import { lazyPage } from "./lazy-page";
 import { TodayPage, CalendarPage, TaskEditor } from "./Tasks";
 import { FeedsPage } from "./Feeds";
 import { GpuPage } from "./Gpu";
@@ -26,8 +31,8 @@ import { SettingsPage } from "./Settings";
 import { Assistant } from "./Assistant";
 import { Notice } from "./ui";
 import type { Page, Secrets, Task, Article } from "./types";
-const AihotPage = lazy(() => import("./AihotPage"));
-const WeeklyPage = lazy(() => import("./WeeklyPage"));
+const AihotPage = lazyPage(() => import("./AihotPage"));
+const WeeklyPage = lazyPage(() => import("./WeeklyPage"));
 const navItems = [
   { id: "today", icon: LayoutDashboard, label: "今天" },
   { id: "calendar", icon: CalendarDays, label: "日历与计划" },
@@ -37,6 +42,25 @@ const navItems = [
   { id: "gpu", icon: Cpu, label: "GPU 资源" },
   { id: "weekly", icon: FilePenLine, label: "写周报" },
 ] as const;
+// [left %, size px, duration s, delay s] for the bubbles rising through the sidebar.
+const BUBBLES = [
+  [12, 7, 15, 0],
+  [34, 4, 11, 3],
+  [58, 9, 18, 6],
+  [76, 5, 13, 1.5],
+  [88, 6, 16, 9],
+  [24, 5, 14, 11],
+];
+const TIDE_NOTES = [
+  "慢慢游，也能抵达深处。",
+  "像鲸鱼一样，一次只深潜一件事。",
+  "累了就浮上来换口气。",
+  "先完成，再完美。",
+  "今天也要按时吃饭哦（白米饭）。",
+  "灵感会像气泡一样冒出来，记下来就好。",
+  "论文读不动的时候，先读摘要。",
+];
+const EMPTY_SECRETS: Secrets = { aiKey: "", bridgeKey: "", xKey: "" };
 const pageFromHash = (): Page => {
   const p = location.hash.replace(/^#\/?/, "").split("?")[0];
   return [
@@ -67,11 +91,12 @@ export default function App() {
   const [assistantPrompt, setAssistantPrompt] = useState("");
   const [assistantArticle, setAssistantArticle] = useState<Article>();
   const [trigger, setTrigger] = useState(0);
-  const [hint, setHint] = useState(false);
   const [now, setNow] = useState(new Date());
+  const [localMode, setLocalMode] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const dataRef = useRef(data);
   dataRef.current = data;
+  const booted = useRef(false);
   const navigate = (p: Page) => {
     location.hash = "/" + p;
     setPage(p);
@@ -83,8 +108,84 @@ export default function App() {
     setAssistantArticle(article);
     setTrigger((n) => n + 1);
     setAssistantOpen(true);
-    setHint(false);
   };
+  useEffect(() => {
+    emitMascot("greet");
+    let last = 0;
+    const active = () => {
+      const now = Date.now();
+      if (now - last < 1500) return;
+      last = now;
+      markActive();
+    };
+    const events = ["pointermove", "pointerdown", "keydown", "wheel", "focus"] as const;
+    events.forEach((e) => window.addEventListener(e, active, { passive: true }));
+    return () => events.forEach((e) => window.removeEventListener(e, active));
+  }, []);
+  useEffect(() => {
+    if (booted.current) return;
+    booted.current = true;
+    void (async () => {
+      const boot = await fetchLocalBoot();
+      if (!boot) return;
+      setLocalMode(true);
+      const messages: string[] = [];
+      let config: ImportedConfig | null = null;
+      if (boot.config) {
+        try {
+          config = parseConfig(boot.config.text);
+        } catch (e) {
+          messages.push(`配置 ${boot.config.name} 无法读取：${(e as Error).message}`);
+        }
+      }
+      let fresh = Boolean(config) && configIsNew(boot);
+      if (config && fresh) {
+        try {
+          applyConfig(dataRef.current, EMPTY_SECRETS, config);
+        } catch (e) {
+          fresh = false;
+          messages.push((e as Error).message);
+        }
+      }
+      setData((d) => {
+        let next = d;
+        if (config && fresh) {
+          try {
+            next = applyConfig(d, EMPTY_SECRETS, config).data;
+          } catch {}
+        }
+        return { ...next, settings: { ...next.settings, bridgeUrl: location.origin } };
+      });
+      setSecrets((s) => ({ ...s, ...(config?.secrets || {}), bridgeKey: boot.pairing }));
+      if (config && fresh) markConfigApplied(boot);
+      if (boot.config && config)
+        messages.unshift(
+          fresh
+            ? `已载入最新配置 ${boot.config.name}，并自动连接本机服务`
+            : `已自动连接本机服务，密钥来自 ${boot.config.name}`,
+        );
+      else if (!boot.config) messages.unshift("已自动连接本机服务；文件夹中还没有 MyLab-settings 配置");
+      if (storageWasEmpty) {
+        try {
+          const r = await fetch("./local/backup", {
+            headers: { Authorization: `Bearer ${boot.pairing}` },
+            cache: "no-store",
+          });
+          const j = await r.json();
+          if (!r.ok) throw Error(j.error || `HTTP ${r.status}`);
+          if (j.backup) {
+            const incoming = validateBackup(JSON.parse(j.backup.text));
+            setData((d) => mergeBackup(d, incoming));
+            messages.push(`已从 ${j.backup.name} 导入 ${incoming.tasks.length} 项待办`);
+          }
+        } catch (e) {
+          messages.push("自动导入备份失败：" + (e as Error).message);
+        }
+      }
+      if (boot.warning) messages.push(boot.warning);
+      setToast(messages.join("；"));
+    })();
+  }, [setData]);
   useEffect(() => {
     const change = () => {
       setPage(pageFromHash());
@@ -119,7 +220,7 @@ export default function App() {
   }, []);
   useEffect(() => {
     if (!data.settings.assistantHints) return;
-    const id = setTimeout(() => setHint(true), 45000);
+    const id = setTimeout(() => emitMascot("hint"), 45000);
     return () => clearTimeout(id);
   }, [data.settings.assistantHints]);
   useEffect(() => {
@@ -314,19 +415,36 @@ export default function App() {
         askAssistant,
         query,
         setQuery,
+        localMode,
       }}
     >
       <div className="app-shell">
         <aside className="sidebar">
+          <div className="sea-bubbles" aria-hidden="true">
+            {BUBBLES.map(([left, size, duration, delay], i) => (
+              <i
+                key={i}
+                style={
+                  {
+                    left: `${left}%`,
+                    "--s": `${size}px`,
+                    "--d": `${duration}s`,
+                    "--delay": `${delay}s`,
+                  } as CSSProperties
+                }
+              />
+            ))}
+          </div>
           <a className="brand" href="#/today">
-            <span className="brand-mark">M</span>
+            <span className="brand-mark">
+              <WhaleMark size={28} />
+            </span>
             <span>
-              MyLab<small>PERSONAL WORKSPACE</small>
+              <strong>MyLab</strong>
+              <small>DEEP SEA LAB</small>
             </span>
           </a>
-          <div className="workspace-label">
-            我的工作空间 <PanelLeftClose size={15} />
-          </div>
+          <div className="workspace-label">工作空间</div>
           <nav>
             {navItems.map(({ id, icon: Icon, label }) => (
               <button
@@ -346,8 +464,17 @@ export default function App() {
             ))}
           </nav>
           <div className="sidebar-note">
-            <span className="tiny-label">留一点空间，专注重要的事。</span>
-            <p>计划 · 阅读 · 实验</p>
+            <strong>小鲸的潮汐便签</strong>
+            <p>
+              {
+                TIDE_NOTES[
+                  Math.floor(
+                    (now.getTime() - now.getTimezoneOffset() * 60000) /
+                      86400000,
+                  ) % TIDE_NOTES.length
+                ]
+              }
+            </p>
           </div>
           <div className="sidebar-bottom">
             <button
@@ -370,8 +497,8 @@ export default function App() {
         </aside>
         <div className="workspace">
           <header className="topbar">
-            <span>
-              工作台 <span className="muted">/</span>
+            <span className="crumbs">
+              工作台 <span className="crumb-sep">/</span>
               <strong>{pageLabel}</strong>
             </span>
             <div className="topbar-right">
@@ -391,8 +518,9 @@ export default function App() {
                 <kbd>Ctrl K</kbd>
               </label>
               <button
-                className="icon-button"
+                className="theme-toggle"
                 aria-label="切换深浅色"
+                title={data.settings.theme === "light" ? "潜入深海（深色）" : "浮上海面（浅色）"}
                 onClick={() =>
                   setData((d) => ({
                     ...d,
@@ -404,14 +532,17 @@ export default function App() {
                 }
               >
                 {data.settings.theme === "light" ? (
-                  <Sun size={19} />
+                  <Moon size={18} />
                 ) : (
-                  <Moon size={19} />
+                  <Sun size={18} />
                 )}
               </button>
-              <span className="local-badge">
-                <HardDrive size={13} />
-                本机保存
+              <span
+                className={"local-badge " + (localMode ? "live" : "")}
+                title={localMode ? "页面由本机服务提供，已自动配对" : "数据保存在此浏览器"}
+              >
+                {localMode ? <span className="dot" /> : <HardDrive size={13} />}
+                {localMode ? "本机运行 · 已配对" : "本机保存"}
               </span>
             </div>
           </header>
@@ -438,35 +569,11 @@ export default function App() {
             )}
           </main>
           <footer className="page-footer">
-            <span>MyLab · 让研究有条不紊</span>
-            <span>数据保存在此浏览器</span>
+            <span>MyLab · 深海研究所，让研究有条不紊</span>
+            <span>{localMode ? "本机运行 · 数据保存在此浏览器" : "数据保存在此浏览器"}</span>
           </footer>
         </div>
-        {!assistantOpen && (
-          <>
-            {hint && data.settings.assistantHints && (
-              <div className="assistant-hint">
-                <button onClick={() => askAssistant()}>
-                  需要一起理清思路吗？
-                </button>
-                <button
-                  aria-label="关闭助手提示"
-                  onClick={() => setHint(false)}
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            )}
-            <button
-              className="assistant-fab"
-              aria-label="呼出助手"
-              title="助手 · Ctrl /"
-              onClick={() => askAssistant()}
-            >
-              <Sparkles size={22} />
-            </button>
-          </>
-        )}
+        <MascotPet open={assistantOpen} onOpen={() => askAssistant()} />
         <Assistant
           open={assistantOpen}
           onClose={() => setAssistantOpen(false)}

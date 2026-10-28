@@ -23,6 +23,7 @@ type Store = {
   askAssistant: (prompt?: string, article?: Article) => void;
   query: string;
   setQuery: (q: string) => void;
+  localMode: boolean;
 };
 export const AppContext = createContext<Store>(null!);
 export const useApp = () => useContext(AppContext);

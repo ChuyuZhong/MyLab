@@ -15,11 +15,14 @@ import {
   defaultData,
   downloadText,
   makeBackup,
+  mergeBackup,
   validateBackup,
   dayKey,
   safeUrl,
 } from "./core";
 import { bridgeRequest, callAI } from "./api";
+import { MOOD_LABELS, previewMascot, type Mood } from "./mascot-mood";
+import { XiaojingAvatar } from "./Mascot";
 import { Heading, Field, Notice } from "./ui";
 import {
   applyConfig,
@@ -33,7 +36,7 @@ export function SettingsPage({
 }: {
   recoverStorage: () => void;
 }) {
-  const { data, setData, secrets, setSecrets, notify } = useApp();
+  const { data, setData, secrets, setSecrets, notify, localMode } = useApp();
   const [busy, setBusy] = useState("");
   const [status, setStatus] = useState("");
   const [configStatus, setConfigStatus] = useState("");
@@ -88,7 +91,35 @@ export function SettingsPage({
             导出的 JSON 包含明文 API Key、配对码及私人接口地址，请保存在自己的设备上，勿上传 GitHub
             或分享。密钥导入后仅用于当前页面，刷新后可再次导入。
           </Notice>
+          {localMode && (
+            <Notice tone="success">
+              本机运行中：启动时会自动载入 MyLab 文件夹里最新的配置文件。修改密钥或接口后点“保存到本机文件夹”，下次启动即生效。
+            </Notice>
+          )}
           <div className="button-group wrap">
+            {localMode && (
+              <button
+                className="primary"
+                disabled={configBusy}
+                onClick={async () => {
+                  setConfigBusy(true);
+                  try {
+                    const { name } = await bridgeRequest(settings, secrets, "/local/config", {
+                      text: exportConfig(data, secrets),
+                    });
+                    setConfigStatus(`已保存为 ${name}，下次启动会自动载入。`);
+                    notify("配置已保存到本机文件夹");
+                  } catch (e) {
+                    setConfigStatus((e as Error).message);
+                  } finally {
+                    setConfigBusy(false);
+                  }
+                }}
+              >
+                <HardDrive size={16} />
+                保存到本机文件夹
+              </button>
+            )}
             <button
               className="secondary"
               disabled={configBusy}
@@ -269,7 +300,11 @@ export function SettingsPage({
             </Field>
             <Field
               label="本机服务配对码（公众号正文 / GPU）"
-              hint="运行 npm run bridge 后在本机终端查看。配对码只保留在页面内存。"
+              hint={
+                localMode
+                  ? "本机运行时已自动配对，无需手动填写。"
+                  : "运行 npm run bridge 后在本机终端查看。配对码只保留在页面内存。"
+              }
             >
               <input
                 type="password"
@@ -370,26 +405,7 @@ export function SettingsPage({
                       JSON.parse(await file.text()),
                     );
                     recoverStorage();
-                    setData((d) => {
-                      const merge = <T extends { id: string }>(
-                        a: T[],
-                        b: T[],
-                      ) =>
-                        Array.from(
-                          new Map([...a, ...b].map((x) => [x.id, x])).values(),
-                        );
-                      return {
-                        ...d,
-                        tasks: merge(d.tasks, incoming.tasks),
-                        events: merge(d.events, incoming.events),
-                        articles: merge(d.articles, incoming.articles),
-                        sources: merge(d.sources, incoming.sources),
-                        requests: merge(d.requests, incoming.requests),
-                        reports: merge(d.reports, incoming.reports).sort(
-                          (a, b) => b.weekStart.localeCompare(a.weekStart),
-                        ),
-                      };
-                    });
+                    setData((d) => mergeBackup(d, incoming));
                     notify("已合并备份：同 ID 记录采用导入内容，现有设置保留");
                   } catch (err) {
                     notify((err as Error).message);
@@ -439,6 +455,18 @@ export function SettingsPage({
                 <option value="dark">深色</option>
               </select>
             </Field>
+            <div className="field">
+              <span>小鲸的状态</span>
+              <div className="mood-picks">
+                {(Object.keys(MOOD_LABELS) as Mood[]).map((m) => (
+                  <button key={m} type="button" onClick={() => previewMascot(m)}>
+                    <XiaojingAvatar mood={m} />
+                    {MOOD_LABELS[m]}
+                  </button>
+                ))}
+              </div>
+              <small>平时她会自己切换：工作时陪你，饭点吃白米饭，空闲三分钟会睡着，完成待办会笑，出错会炸毛。点一下可以预览。</small>
+            </div>
             <label className="checkbox-label">
               <input
                 type="checkbox"

@@ -1,6 +1,7 @@
 import type { Article, Settings, Secrets, Source, FeedResult } from "./types";
 import { safeUrl } from "./core";
 import { fetchRSDL } from "./rsdl-client";
+import { emitMascot } from "./mascot-mood";
 const fullPostCache = new Map<string, string>();
 async function completeXPosts(items: Article[], signal?: AbortSignal) {
   for (const a of items) {
@@ -58,7 +59,25 @@ export async function bridgeRequest(
   if (!res.ok) throw Error(json.error || `连接服务返回 ${res.status}`);
   return json;
 }
+// Every model call also drives 小鲸: thinking while it runs, a reaction when it settles.
 export async function callAI(
+  settings: Settings,
+  key: string,
+  messages: { role: string; content: string }[],
+  signal?: AbortSignal,
+  options?: { maxTokens?: number },
+) {
+  emitMascot("ai-start");
+  try {
+    const content = await requestAI(settings, key, messages, signal, options);
+    emitMascot("ai-done");
+    return content;
+  } catch (e) {
+    emitMascot(signal?.aborted ? "ai-stop" : "ai-error");
+    throw e;
+  }
+}
+async function requestAI(
   settings: Settings,
   key: string,
   messages: { role: string; content: string }[],

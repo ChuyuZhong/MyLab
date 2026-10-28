@@ -1,21 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  Sparkles,
-  X,
-  Send,
-  Settings,
-  Square,
-  Plus,
-  Languages,
-  BookOpen,
-  CheckCircle,
-} from "lucide-react";
+import { X, Send, Settings, Square, Plus, BookOpen, ArrowUpRight } from "lucide-react";
 import { useApp } from "./store";
 import { callAI } from "./api";
 import { dayKey } from "./core";
 import { localGuidance } from "./guidance";
+import { Xiaojing, XiaojingAvatar } from "./Mascot";
+import { useMascot } from "./mascot-mood";
 import type { Article } from "./types";
-type Message = { role: "user" | "assistant"; content: string };
+type Message = { role: "user" | "assistant"; content: string; error?: boolean };
 export function Assistant({
   open,
   onClose,
@@ -38,6 +30,7 @@ export function Assistant({
   const abort = useRef<AbortController | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const busyRef = useRef(false);
+  const mascot = useMascot();
   useEffect(() => {
     setInput(prompt);
     setScope(article);
@@ -125,7 +118,7 @@ export function Assistant({
     } catch (e) {
       setMessages((m) => [
         ...m,
-        { role: "assistant", content: (e as Error).message },
+        { role: "assistant", content: (e as Error).message, error: true },
       ]);
     } finally {
       setBusy(false);
@@ -133,15 +126,21 @@ export function Assistant({
     }
   }
   if (!open) return null;
+  const online = Boolean(secrets.aiKey);
   return (
-    <section className="assistant-panel" aria-label="MyLab 助手">
-      <header>
-        <span className="assistant-icon">
-          <Sparkles size={22} />
+    <section className="assistant-panel" aria-label="小鲸助手">
+      <header className="assistant-head">
+        <span className="assistant-avatar">
+          <XiaojingAvatar mood={mascot.mood} busy={mascot.busy} />
         </span>
         <div>
-          <strong>MyLab 助手</strong>
-          <small>随行思考，随时开始</small>
+          <strong>
+            小鲸 <em>DeepSeek</em>
+          </strong>
+          <small>
+            <i className={online ? "" : "off"} />
+            {online ? `${data.settings.aiModel} · 在线陪你想事情` : "本地指导模式 · 填写 API Key 后上线"}
+          </small>
         </div>
         <button
           className="icon-button"
@@ -157,11 +156,9 @@ export function Assistant({
       <div className="assistant-messages" ref={scroller}>
         {!messages.length && (
           <div className="assistant-welcome">
-            <span className="empty-icon">
-              <Sparkles size={28} />
-            </span>
-            <h3>一起把事情理清楚。</h3>
-            <p>从一个问题开始，或试试下面的建议。</p>
+            <Xiaojing mood="smile" />
+            <h3>你好呀，我是小鲸～</h3>
+            <p>安排计划、读文章、翻译动态，都可以交给我。</p>
             {[
               "帮我安排今天的任务",
               "如何设置每周组会提醒？",
@@ -169,38 +166,55 @@ export function Assistant({
             ].map((s) => (
               <button key={s} onClick={() => setInput(s)}>
                 {s}
-                <Plus size={14} />
+                <ArrowUpRight size={15} />
               </button>
             ))}
           </div>
         )}
         {messages.map((m, i) => (
-          <div className={"chat-message " + m.role} key={i}>
-            <span className="message-label">
-              {m.role === "user" ? "你" : "MyLab"}
-            </span>
-            <div>{m.content}</div>
-            {m.role === "assistant" && secrets.aiKey && (
-              <button
-                className="text-button"
-                onClick={() =>
-                  editTask({
-                    title: "整理助手建议",
-                    notes: m.content,
-                    project: "个人",
-                  })
-                }
-              >
-                <Plus size={13} />
-                整理成待办
-              </button>
+          <div
+            className={`msg msg-${m.role}${m.error ? " msg-error" : ""}`}
+            key={i}
+          >
+            {m.role === "assistant" && (
+              <span className="msg-avatar">
+                <XiaojingAvatar mood={m.error ? "rage" : "smile"} />
+              </span>
             )}
+            <div className="msg-body">
+              <span className="msg-label">
+                {m.role === "user" ? "你" : m.error ? "小鲸 · 出了点状况" : "小鲸"}
+              </span>
+              <div className="msg-bubble">{m.content}</div>
+              {m.role === "assistant" && !m.error && secrets.aiKey && (
+                <button
+                  className="text-button"
+                  onClick={() =>
+                    editTask({
+                      title: "整理助手建议",
+                      notes: m.content,
+                      project: "个人",
+                    })
+                  }
+                >
+                  <Plus size={13} />
+                  整理成待办
+                </button>
+              )}
+            </div>
           </div>
         ))}
         {busy && (
-          <div className="thinking">
-            <Sparkles size={15} className="pulse" />
-            正在思考…
+          <div className="thinking" role="status">
+            <span className="msg-avatar">
+              <XiaojingAvatar mood="work" busy />
+            </span>
+            小鲸正在深海里思考
+            <span className="thinking-dots">
+              <i />
+              <i />
+              <i />
+            </span>
           </div>
         )}
       </div>
@@ -236,7 +250,7 @@ export function Assistant({
             rows={2}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="说说你想做什么…"
+            placeholder="和小鲸说说你想做什么…"
             aria-label="向助手提问"
             onKeyDown={(e) => {
               if (

@@ -8,6 +8,9 @@ dist/
 *.log
 coverage/
 MyLab-settings-*.json
+MyLab-settings-*.json.tmp
+MyLab-backup-*.json
+MyLab-raw-*.json
 .DS_Store
 
 __pycache__/

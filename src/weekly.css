@@ -343,7 +343,7 @@
 }
 .report-outline i {
   font-style: normal;
-  color: #b4c4cd;
+  color: var(--faint);
 }
 .report-replace-note {
   font-size: 11px;
@@ -374,7 +374,7 @@
   color: var(--muted);
 }
 .report-preview-empty > svg {
-  color: #8ca6b1;
+  color: var(--muted);
   margin-bottom: 24px;
 }
 .report-preview-empty h3 {

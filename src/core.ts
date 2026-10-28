@@ -436,6 +436,22 @@ export function validateBackup(value: unknown): AppData {
     reports,
   };
 }
+// Same-ID records take the incoming copy; settings stay as they are.
+export function mergeBackup(d: AppData, incoming: AppData): AppData {
+  const merge = <T extends { id: string }>(a: T[], b: T[]) =>
+    Array.from(new Map([...a, ...b].map((x) => [x.id, x])).values());
+  return {
+    ...d,
+    tasks: merge(d.tasks, incoming.tasks),
+    events: merge(d.events, incoming.events),
+    articles: merge(d.articles, incoming.articles),
+    sources: merge(d.sources, incoming.sources),
+    requests: merge(d.requests, incoming.requests),
+    reports: merge(d.reports, incoming.reports).sort((a, b) =>
+      b.weekStart.localeCompare(a.weekStart),
+    ),
+  };
+}
 export function makeBackup(data: AppData) {
   return {
     ...data,

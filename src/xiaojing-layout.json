@@ -1,0 +1,414 @@
+{
+  "art": [
+    584,
+    458
+  ],
+  "moods": {
+    "work": {
+      "still": {
+        "file": "work.webp",
+        "box": [
+          0,
+          0,
+          584,
+          458
+        ]
+      },
+      "body": {
+        "file": "work-body.webp",
+        "box": [
+          -18,
+          -18,
+          620,
+          494
+        ],
+        "frames": 32,
+        "cols": 8,
+        "rows": 4,
+        "seconds": 3.2
+      },
+      "tail": {
+        "file": "work-tail.webp",
+        "box": [
+          -1,
+          230,
+          231,
+          228
+        ],
+        "frames": 32,
+        "cols": 32,
+        "rows": 1,
+        "seconds": 3.2
+      },
+      "fx": [
+        {
+          "name": "lines",
+          "file": "work-lines.webp",
+          "box": [
+            84,
+            210,
+            44,
+            46
+          ]
+        }
+      ],
+      "face": [
+        337,
+        261,
+        250
+      ],
+      "glow": [
+        318,
+        371,
+        68,
+        68
+      ]
+    },
+    "smile": {
+      "still": {
+        "file": "smile.webp",
+        "box": [
+          6.1,
+          10.1,
+          578.16,
+          453.42
+        ]
+      },
+      "body": {
+        "file": "smile-body.webp",
+        "box": [
+          -11.72,
+          -7.72,
+          613.8,
+          489.06
+        ],
+        "frames": 24,
+        "cols": 8,
+        "rows": 3,
+        "seconds": 2.4
+      },
+      "tail": {
+        "file": "smile-tail.webp",
+        "box": [
+          15.01,
+          214.04,
+          210.87,
+          237.6
+        ],
+        "frames": 12,
+        "cols": 12,
+        "rows": 1,
+        "seconds": 0.8
+      },
+      "fx": [
+        {
+          "name": "s1",
+          "file": "smile-s1.webp",
+          "box": [
+            103.12,
+            177.41,
+            43.56,
+            45.54
+          ]
+        },
+        {
+          "name": "s2",
+          "file": "smile-s2.webp",
+          "box": [
+            470.41,
+            97.22,
+            41.58,
+            46.53
+          ]
+        },
+        {
+          "name": "s3",
+          "file": "smile-s3.webp",
+          "box": [
+            499.12,
+            150.68,
+            32.67,
+            35.64
+          ]
+        }
+      ],
+      "face": [
+        340.72,
+        257.6,
+        247.5
+      ]
+    },
+    "sleep": {
+      "still": {
+        "file": "sleep.webp",
+        "box": [
+          1.2,
+          3.2,
+          578.16,
+          453.42
+        ]
+      },
+      "body": {
+        "file": "sleep-body.webp",
+        "box": [
+          -16.62,
+          -14.62,
+          613.8,
+          489.06
+        ],
+        "frames": 32,
+        "cols": 8,
+        "rows": 4,
+        "seconds": 4.8
+      },
+      "tail": {
+        "file": "sleep-tail.webp",
+        "box": [
+          -15.63,
+          236.84,
+          198.99,
+          225.72
+        ],
+        "frames": 24,
+        "cols": 24,
+        "rows": 1,
+        "seconds": 4.8
+      },
+      "fx": [
+        {
+          "name": "z1",
+          "file": "sleep-z1.webp",
+          "box": [
+            516,
+            71.51,
+            25.74,
+            26.73
+          ]
+        },
+        {
+          "name": "z2",
+          "file": "sleep-z2.webp",
+          "box": [
+            485.31,
+            108.14,
+            25.74,
+            27.72
+          ]
+        },
+        {
+          "name": "b1",
+          "file": "sleep-b1.webp",
+          "box": [
+            521.94,
+            258.62,
+            25.74,
+            24.75
+          ]
+        },
+        {
+          "name": "b2",
+          "file": "sleep-b2.webp",
+          "box": [
+            526.89,
+            290.3,
+            16.83,
+            16.83
+          ]
+        },
+        {
+          "name": "b3",
+          "file": "sleep-b3.webp",
+          "box": [
+            507.09,
+            279.41,
+            15.84,
+            13.86
+          ]
+        }
+      ],
+      "face": [
+        342.75,
+        262.58,
+        247.5
+      ]
+    },
+    "eat": {
+      "still": {
+        "file": "eat.webp",
+        "box": [
+          -3,
+          10,
+          584,
+          416
+        ]
+      },
+      "body": {
+        "file": "eat-body.webp",
+        "box": [
+          -21,
+          -8,
+          620,
+          452
+        ],
+        "frames": 24,
+        "cols": 8,
+        "rows": 3,
+        "seconds": 2.4
+      },
+      "tail": {
+        "file": "eat-tail.webp",
+        "box": [
+          -3,
+          204,
+          226,
+          244
+        ],
+        "frames": 16,
+        "cols": 16,
+        "rows": 1,
+        "seconds": 1.2
+      },
+      "fx": [
+        {
+          "name": "heart",
+          "file": "eat-heart.webp",
+          "box": [
+            91,
+            165,
+            40,
+            42
+          ]
+        }
+      ],
+      "face": [
+        342,
+        247,
+        250
+      ]
+    },
+    "grab": {
+      "still": {
+        "file": "grab.webp",
+        "box": [
+          9.7,
+          11.6,
+          575.37,
+          409.85
+        ]
+      },
+      "body": {
+        "file": "grab-body.webp",
+        "box": [
+          -8.03,
+          -6.13,
+          610.84,
+          445.32
+        ],
+        "frames": 32,
+        "cols": 8,
+        "rows": 4,
+        "seconds": 3.2
+      },
+      "tail": {
+        "file": "grab-tail.webp",
+        "box": [
+          0.83,
+          239.19,
+          223.65,
+          209.85
+        ],
+        "frames": 16,
+        "cols": 16,
+        "rows": 1,
+        "seconds": 1.6
+      },
+      "fx": [
+        {
+          "name": "q1",
+          "file": "grab-q1.webp",
+          "box": [
+            496.4,
+            104.21,
+            36.45,
+            56.16
+          ]
+        },
+        {
+          "name": "q2",
+          "file": "grab-q2.webp",
+          "box": [
+            104.28,
+            175.15,
+            39.41,
+            54.19
+          ]
+        }
+      ],
+      "face": [
+        336.79,
+        246.08,
+        246.31
+      ]
+    },
+    "pout": {
+      "still": {
+        "file": "pout.webp",
+        "box": [
+          27.4,
+          12.6,
+          534.72,
+          436.83
+        ]
+      },
+      "body": {
+        "file": "pout-body.webp",
+        "box": [
+          8.45,
+          -6.35,
+          572.61,
+          474.72
+        ],
+        "frames": 24,
+        "cols": 8,
+        "rows": 3,
+        "seconds": 2.4
+      },
+      "fx": [],
+      "face": [
+        332.65,
+        244.17,
+        263.15
+      ]
+    },
+    "rage": {
+      "still": {
+        "file": "rage.webp",
+        "box": [
+          17.8,
+          -30.3,
+          573.4,
+          497.26
+        ]
+      },
+      "body": {
+        "file": "rage-body.webp",
+        "box": [
+          0.88,
+          -47.22,
+          607.24,
+          531.1
+        ],
+        "frames": 16,
+        "cols": 8,
+        "rows": 2,
+        "seconds": 1.2
+      },
+      "fx": [],
+      "face": [
+        332.7,
+        244.18,
+        263.2
+      ]
+    }
+  }
+}

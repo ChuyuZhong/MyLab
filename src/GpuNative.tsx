@@ -1,11 +1,12 @@
 import {GpuColumnFilter} from './GpuColumnFilter';
+import {lazyPage} from './lazy-page';
 import {matchesTaskFilters,taskFilterOptions,taskColumns,type TaskFilters} from './gpu-task-filters';
 import '@fontsource/cascadia-mono/latin-400.css';
-import {useEffect,useRef,useState,lazy,Suspense} from 'react';
+import {useEffect,useRef,useState,Suspense} from 'react';
 import {useApp} from './store';
 import {bridgeRequest} from './api';
 import {Modal,Notice,Field} from './ui';
-const GpuTerminal=lazy(()=>import('./GpuTerminal').then(m=>({default:m.GpuTerminal}))); 
+const GpuTerminal=lazyPage(()=>import('./GpuTerminal').then(m=>({default:m.GpuTerminal}))); 
 type Kind='shell'|'command'|'experiment';
 type Task={id:string;kind:Kind;state:string;description:string;user:string;pool:string;startTime:string;endTime?:string;active:boolean;configYaml?:string;configSummary?:{image?:string;slots?:number};};
 type Agent={id:string;pools:string[];slotsTotal:number;slotsFree:number;slots:{id:string;state:string;mine?:boolean;taskId?:string;user?:string}[]};

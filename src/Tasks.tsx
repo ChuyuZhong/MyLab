@@ -16,7 +16,12 @@ import {
   Sparkles,
   Bell,
   ChevronDown,
+  ListTodo,
+  CircleCheckBig,
+  Hourglass,
 } from "lucide-react";
+import { Xiaojing } from "./Mascot";
+import { emitMascot } from "./mascot-mood";
 import { useApp } from "./store";
 import {
   dayKey,
@@ -40,7 +45,7 @@ export function TaskEditor({
   initial: Partial<Task>;
   onClose: () => void;
 }) {
-  const { setData, notify } = useApp();
+  const { data, setData, notify } = useApp();
   const [task, setTask] = useState(() => newTask({ title: "", ...initial }));
   const [scope, setScope] = useState("one");
   const patch = (p: Partial<Task>) => setTask((t) => ({ ...t, ...p }));
@@ -64,6 +69,7 @@ export function TaskEditor({
           : Number(task.date.slice(8))
         : undefined,
     };
+    if (!data.tasks.some((t) => t.id === task.id)) emitMascot("task-added");
     setData((d) => {
       let list = d.tasks.some((t) => t.id === task.id)
         ? d.tasks.map((t) => (t.id === task.id ? cleaned : t))
@@ -383,6 +389,7 @@ export function TaskRows({ tasks }: { tasks: Task[] }) {
             aria-label={(t.completedAt ? "恢复 " : "完成 ") + t.title}
             onClick={() => {
               setData((d) => ({ ...d, tasks: toggleTask(d.tasks, t.id) }));
+              if (!t.completedAt) emitMascot("task-done");
               notify(
                 t.completedAt
                   ? "待办已恢复"
@@ -446,6 +453,7 @@ export function TaskRows({ tasks }: { tasks: Task[] }) {
                   ...d,
                   tasks: d.tasks.filter((x) => x.id !== t.id),
                 }));
+                emitMascot("task-deleted");
                 notify("已移除待办");
               }}
             >
@@ -457,6 +465,7 @@ export function TaskRows({ tasks }: { tasks: Task[] }) {
     </div>
   );
 }
+const RING = 2 * Math.PI * 50;
 export function TodayPage() {
   const { data, setData, notify, editTask, askAssistant, query } = useApp();
   const [filter, setFilter] = useState("today");
@@ -491,10 +500,21 @@ export function TodayPage() {
         a.priority - b.priority ||
         (a.time || "99").localeCompare(b.time || "99"),
     );
+  const doneToday = data.tasks.filter(
+    (t) => t.completedAt && dayKey(new Date(t.completedAt)) === today,
+  ).length;
+  const remainingToday = planned.filter((t) => !t.date || t.date <= today).length;
+  const progress = doneToday + remainingToday
+    ? Math.round((doneToday / (doneToday + remainingToday)) * 100)
+    : 0;
+  const hour = new Date().getHours();
+  const greeting =
+    hour < 6 ? "夜深了" : hour < 11 ? "早上好" : hour < 14 ? "中午好" : hour < 18 ? "下午好" : "晚上好";
   const quick = () => {
     if (!input.trim()) return;
     const parsed = parseQuickTask(input);
     setData((d) => ({ ...d, tasks: [...d.tasks, newTask(parsed)] }));
+    emitMascot("task-added");
     setInput("");
     notify(
       `已添加${parsed.repeat !== "none" ? " · " + repeatLabel(parsed.repeat!) : ""} · ${dateLabel(parsed.date || "")}${parsed.time ? " " + parsed.time : ""}`,
@@ -502,56 +522,88 @@ export function TodayPage() {
   };
   return (
     <>
-      <Heading
-        eyebrow="YOUR DAY, AT A GLANCE"
-        title="今天，专注一点。"
-        description={`${new Date().toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "long" })} · 从一件小事开始，让研究向前一步。`}
-        action={
-          <button className="primary" onClick={() => editTask({})}>
-            <Plus size={18} />
-            新建待办
-          </button>
-        }
-      />
+      <section className="today-hero">
+        <div>
+          <div className="eyebrow">
+            {new Date().toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "long" })}
+          </div>
+          <h1>
+            {greeting}，<span className="hero-accent">专注一点</span>。
+          </h1>
+          <p>
+            {remainingToday
+              ? `今天还有 ${remainingToday} 件事在等你，从最小的那件开始吧。`
+              : doneToday
+                ? "今天的待办都清空啦，去读篇论文奖励一下自己？"
+                : "海面很平静。记下一件小事，让研究向前一步。"}
+          </p>
+          <div className="hero-actions">
+            <button className="primary" onClick={() => editTask({})}>
+              <Plus size={18} />
+              新建待办
+            </button>
+            <button
+              className="hero-ghost"
+              onClick={() => askAssistant("帮我安排今天的任务")}
+            >
+              <Sparkles size={16} />
+              让小鲸排一排
+            </button>
+          </div>
+        </div>
+        <div className="hero-stats">
+          <div className="hero-ring" aria-label={`今日进度 ${progress}%`}>
+            <svg viewBox="0 0 120 120" aria-hidden="true">
+              <circle className="track" cx="60" cy="60" r="50" />
+              <circle
+                className="value"
+                cx="60"
+                cy="60"
+                r="50"
+                strokeDasharray={RING}
+                strokeDashoffset={RING * (1 - progress / 100)}
+              />
+            </svg>
+            <div className="ring-label">
+              <strong>{progress}%</strong>
+              <small>今日进度</small>
+            </div>
+            <span>
+              已完成 {doneToday} / {doneToday + remainingToday}
+            </span>
+          </div>
+          <div className="hero-stat">
+            <ListTodo />
+            <span>待完成</span>
+            <strong>
+              {planned.length}
+              <small>项</small>
+            </strong>
+          </div>
+          <div className="hero-stat">
+            <CircleCheckBig />
+            <span>今天已完成</span>
+            <strong>
+              {doneToday}
+              <small>项</small>
+            </strong>
+          </div>
+          <div className="hero-stat">
+            <Hourglass />
+            <span>七天内截止</span>
+            <strong>
+              {upcoming.length}
+              <small>项</small>
+            </strong>
+          </div>
+        </div>
+        <svg className="hero-waves" viewBox="0 0 1200 64" preserveAspectRatio="none" aria-hidden="true">
+          <path d="M0 34C150 10 300 54 450 34S750 8 900 30 1140 52 1260 28V64H0Z" fill="#fff" fillOpacity=".1" />
+          <path d="M0 46C170 30 330 62 520 44S820 26 980 44 1180 58 1260 40V64H0Z" fill="#fff" fillOpacity=".12" />
+        </svg>
+      </section>
       <div className="today-layout">
         <section>
-          <div className="stats-strip">
-            <div>
-              <span>待完成</span>
-              <strong>
-                {planned.length}
-                <small>项任务</small>
-              </strong>
-            </div>
-            <div>
-              <span>今天已完成</span>
-              <strong>
-                {
-                  data.tasks.filter(
-                    (t) =>
-                      t.completedAt &&
-                      dayKey(new Date(t.completedAt)) === today,
-                  ).length
-                }
-                <small>继续保持</small>
-              </strong>
-            </div>
-            <div>
-              <span>即将截止</span>
-              <strong>
-                {upcoming.length}
-                <small>未来七天</small>
-              </strong>
-            </div>
-            <div className="stat-decoration">
-              <span>一件一件，慢慢来。</span>
-              <div className="mini-bars" aria-hidden="true">
-                {[24, 40, 29, 49, 36, 58, 45].map((h, i) => (
-                  <i key={i} style={{ height: h }} />
-                ))}
-              </div>
-            </div>
-          </div>
           <div className="section-heading">
             <h2>
               {filter === "day" ? dateLabel(selected) + "的待办" : "我的待办"}
@@ -681,21 +733,21 @@ export function TodayPage() {
             )}
           </div>
           <div className="assistant-card">
-            <span className="assistant-icon">
-              <Sparkles size={21} />
-            </span>
-            <h3>多一个思考伙伴。</h3>
-            <p>
-              安排计划、读懂文章、翻译动态。
-              <br />
-              让助手陪你把事情理清楚。
-            </p>
-            <button
-              className="text-button"
-              onClick={() => askAssistant("帮我安排今天的任务")}
-            >
-              随时呼出助手 <ArrowUpRight size={15} />
-            </button>
+            <div>
+              <h3>先干饭，再干活！</h3>
+              <p>
+                计划、文章、翻译，
+                <br />
+                吃完这口就来帮你～
+              </p>
+              <button
+                className="text-button"
+                onClick={() => askAssistant("帮我安排今天的任务")}
+              >
+                呼出小鲸 <ArrowUpRight size={15} />
+              </button>
+            </div>
+            <Xiaojing mood="eat" />
           </div>
         </aside>
       </div>

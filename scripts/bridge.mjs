@@ -11,6 +11,7 @@ import { collectRSDL } from "./public-data.mjs";
 import { wechatArticleUrl, extractWechatArticle } from "./article-reader.mjs";
 import { createXNetwork } from "./x-network.mjs";
 import { allowedLocalFeed } from "./local-feed.mjs";
+import { isApiPath, serveStatic, latestConfig, latestBackup, saveConfig } from "./local-site.mjs";
 const xNetwork = createXNetwork(process.env.MYLAB_PROXY_URL || "");
 const localFeedOrigins = new Set(
   (process.env.MYLAB_LOCAL_FEED_ORIGINS || "")
@@ -21,16 +22,30 @@ const localFeedOrigins = new Set(
 // The bridge is deliberately loopback-only. No passwords or API tokens are written to disk.
 const port = Number(process.env.MYLAB_BRIDGE_PORT || 4318);
 const pairing = randomBytes(24).toString("base64url");
+// MYLAB_SERVE_SITE=1 (set by scripts/start.mjs) also serves dist/ from this origin.
+const serveSite = process.env.MYLAB_SERVE_SITE === "1";
+const selfOrigins = ["http://127.0.0.1:" + port, "http://localhost:" + port];
 const origins = new Set([
   "https://chuyuzhong.github.io",
   "http://127.0.0.1:5173",
   "http://localhost:5173",
+  ...selfOrigins,
   ...(process.env.MYLAB_ALLOWED_ORIGINS || "").split(",").filter(Boolean),
 ]);
 let gpuUsername = "";
 let gpuBase = "",
   gpuToken = "";
 const timeout = () => AbortSignal.timeout(20000);
+// The bootstrap hands out the pairing code, so only this origin's own page may read it.
+function sameOriginPage(req) {
+  const origin = req.headers.origin,
+    fetchSite = req.headers["sec-fetch-site"];
+  return (
+    req.headers["x-mylab-local"] === "1" &&
+    (!origin || selfOrigins.includes(origin)) &&
+    (!fetchSite || fetchSite === "same-origin")
+  );
+}
 function json(res, status, obj) {
   res.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
@@ -278,6 +293,23 @@ const server = http.createServer(async (req, res) => {
     res.end();
     return;
   }
+  const route = new URL(req.url, "http://127.0.0.1").pathname;
+  if (serveSite && ["GET", "HEAD"].includes(req.method) && !isApiPath(route)) {
+    await serveStatic(req, res, route);
+    return;
+  }
+  if (serveSite && route === "/local/bootstrap" && req.method === "GET") {
+    if (!sameOriginPage(req)) {
+      json(res, 403, { error: "Origin not allowed" });
+      return;
+    }
+    try {
+      json(res, 200, { pairing, config: await latestConfig() });
+    } catch (e) {
+      json(res, 200, { pairing, config: null, warning: "读取配置文件失败：" + e.message });
+    }
+    return;
+  }
   const supplied = Buffer.from(
     (req.headers.authorization || "").replace(/^Bearer /, ""),
   );
@@ -298,7 +330,17 @@ const server = http.createServer(async (req, res) => {
         version: "0.1.0",
         xProxy: xNetwork.proxy || "直连",
         articleReader: true,
+        localSite: serveSite,
       });
+      return;
+    }
+    if (serveSite && path === "/local/backup" && req.method === "GET") {
+      json(res, 200, { backup: await latestBackup() });
+      return;
+    }
+    if (serveSite && path === "/local/config" && req.method === "POST") {
+      const q = await body(req);
+      json(res, 200, await saveConfig(q.text));
       return;
     }
     if (path === "/gpu/login" && req.method === "POST") {
@@ -409,6 +451,11 @@ if (
 }
 const issueTerminalTicket=installTerminalWebSocket(server,{origins,port,session:()=>({base:gpuBase,username:gpuUsername,token:gpuToken})});
 server.listen(port, "127.0.0.1", () => {
+  if (serveSite) {
+    console.log(`MyLab 已在本机启动：http://127.0.0.1:${port}/`);
+    console.log("网页会自动配对并载入文件夹中最新的 MyLab-settings 配置。关闭此窗口即停止服务。");
+    return;
+  }
   console.log(`MyLab local bridge: http://127.0.0.1:${port}`);
   console.log(`Pairing code (memory only): ${pairing}`);
   console.log(

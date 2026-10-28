@@ -10,7 +10,7 @@ import {Notice} from './ui';
 export function GpuTerminal({taskId}:{taskId:string}){
  const {data,secrets}=useApp();const host=useRef<HTMLDivElement>(null),[error,setError]=useState(''),[status,setStatus]=useState('正在连接任务终端…');
  useEffect(()=>{
-  const id=crypto.randomUUID(),term=new Terminal({cursorBlink:true,fontFamily:'Consolas, monospace',fontSize:16,lineHeight:1.2,fontWeight:400,fontWeightBold:700,scrollback:3000,theme:{background:'#172731',foreground:'#e4edef'}}),fit=new FitAddon();term.loadAddon(fit);term.open(host.current!);
+  const id=crypto.randomUUID(),term=new Terminal({cursorBlink:true,fontFamily:'Consolas, monospace',fontSize:16,lineHeight:1.2,fontWeight:400,fontWeightBold:700,scrollback:3000,theme:{background:'#0c1433',foreground:'#dfe6ff',cursor:'#8fa5ff',selectionBackground:'#3a4fb0'}}),fit=new FitAddon();term.loadAddon(fit);term.open(host.current!);
   let alive=true,opened=false,seq=0,confirmed=0,cursor=0,ws:WebSocket|undefined,retries=0,inputFailed=false,failed=false;
   let retryTimer:ReturnType<typeof setTimeout>|undefined,resizeTimer:ReturnType<typeof setTimeout>|undefined;
   const api=(action:string,body:object={})=>bridgeRequest(data.settings,secrets,'/gpu/terminal/'+action,{id,...body});

@@ -5,10 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
+    "start": "node scripts/start.mjs",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
-    "bridge": "node --env-file-if-exists=.env.local scripts/bridge.mjs"
+    "bridge": "node --env-file-if-exists=.env.local scripts/bridge.mjs",
+    "xiaojing:frames": "node tools/xiaojing/render.mjs"
   },
   "dependencies": {
     "@fontsource/cascadia-mono": "^5.3.0",
